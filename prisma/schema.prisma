@@ -43,7 +43,9 @@ model Tag {
 model News {
   id       String @id @default(cuid())
   title    String
-  summary  String // 60-80 word short summary shown on the card
+  summary          String // 60-80 word short summary shown on the card
+  summaryHi        String? // Hindi translation in देवनागरी
+  summaryHinglish  String? // Hinglish (romanized Hindi)
   sourceUrl String? // original article link
   imageUrl  String?
 

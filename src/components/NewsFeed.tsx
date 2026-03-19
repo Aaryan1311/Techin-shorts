@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 import TagFilterBar from "./TagFilterBar";
 import NewsCard from "./NewsCard";
 
@@ -26,6 +28,7 @@ interface NewsItem {
 }
 
 export default function NewsFeed() {
+  const { data: session, status } = useSession();
   const [tags, setTags] = useState<Tag[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -52,26 +55,60 @@ export default function NewsFeed() {
     <div className="flex h-dvh flex-col bg-gray-950">
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
-        <div className="flex items-center gap-3 px-4 py-3">
-          {/* Logo */}
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
-            <svg
-              className="h-5 w-5 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            {/* Logo */}
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
+              <svg
+                className="h-5 w-5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Techie Shorts</h1>
+              <p className="text-xs text-gray-500">Dev news in 60 words</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-white">Techie Shorts</h1>
-            <p className="text-xs text-gray-500">Dev news in 60 words</p>
+
+          {/* Auth buttons */}
+          <div className="flex items-center gap-2">
+            {status === "loading" ? null : session?.user ? (
+              <>
+                <span className="hidden text-sm text-gray-400 sm:inline">
+                  {session.user.name || session.user.email}
+                </span>
+                <button
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-white/10"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/auth/login"
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-white/10"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/auth/signup"
+                  className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20 transition-all hover:shadow-indigo-500/40"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

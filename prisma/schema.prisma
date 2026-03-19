@@ -10,10 +10,12 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
+  password  String?  // hashed password for credentials auth
   name      String?
   avatarUrl String?
 
   preferredLanguage Language @default(ENGLISH)
+  onboarded         Boolean @default(false)
 
   tagFollows        UserTagFollow[]
   newsInteractions  UserNewsInteraction[]

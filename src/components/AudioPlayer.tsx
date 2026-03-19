@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
-type Lang = "EN" | "HI" | "HINGLISH";
+export type Lang = "EN" | "HI" | "HINGLISH";
 
 interface AudioPlayerProps {
-  text: string;
   newsId: string;
+  lang: Lang;
+  onLangChange: (lang: Lang) => void;
 }
 
 const LANG_LABELS: Record<Lang, string> = {
@@ -15,25 +16,11 @@ const LANG_LABELS: Record<Lang, string> = {
   HINGLISH: "Hinglish",
 };
 
-const LS_KEY = "techie-shorts-audio-lang";
-
-export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
-  const [lang, setLang] = useState<Lang>("EN");
+export default function AudioPlayer({ newsId, lang, onLangChange }: AudioPlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
-  const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Load saved preference
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LS_KEY) as Lang | null;
-      if (saved && LANG_LABELS[saved]) setLang(saved);
-    } catch {
-      // ignore
-    }
-  }, []);
 
   // Stop audio when card changes / unmounts
   useEffect(() => {
@@ -45,13 +32,11 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
     };
   }, [newsId]);
 
-  // Reset translated text when switching news
   useEffect(() => {
-    setTranslatedText(null);
     setError(null);
   }, [newsId]);
 
-  const handleLangChange = useCallback(
+  const handleLangSwitch = useCallback(
     (newLang: Lang) => {
       // Stop current playback
       if (audioRef.current) {
@@ -59,47 +44,11 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
         audioRef.current.src = "";
         setPlaying(false);
       }
-
-      setLang(newLang);
-      setTranslatedText(null);
       setError(null);
-
-      try {
-        localStorage.setItem(LS_KEY, newLang);
-      } catch {
-        // ignore
-      }
-
-      // Save preference (fire and forget)
-      fetch("/api/user/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferredLanguage: newLang }),
-      }).catch(() => {});
-
-      // Fetch translation for non-EN
-      if (newLang !== "EN") {
-        fetchTranslation(newLang);
-      }
+      onLangChange(newLang);
     },
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    [onLangChange]
   );
-
-  const fetchTranslation = async (targetLang: Lang) => {
-    try {
-      const res = await fetch(`/api/news/${newsId}/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: targetLang }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTranslatedText(data.text);
-      }
-    } catch {
-      // Translation display is optional
-    }
-  };
 
   const togglePlay = async () => {
     if (playing && audioRef.current) {
@@ -111,7 +60,7 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
     setError(null);
 
     try {
-      // Step 1: Translate if needed
+      // Step 1: Translate if needed (also updates parent's displayed text)
       if (lang !== "EN") {
         setLoadingStep("Translating...");
         const translateRes = await fetch(`/api/news/${newsId}/translate`, {
@@ -123,8 +72,6 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
           const data = await translateRes.json();
           throw new Error(data.error || "Translation failed");
         }
-        const translateData = await translateRes.json();
-        setTranslatedText(translateData.text);
       }
 
       // Step 2: Get audio
@@ -149,7 +96,6 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
 
       const audio = audioRef.current;
       audio.src = audioData.audioUrl;
-
       audio.onended = () => setPlaying(false);
       audio.onerror = () => {
         setPlaying(false);
@@ -166,11 +112,9 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
   };
 
   const isLoading = !!loadingStep;
-  const displayText = lang === "EN" ? null : translatedText;
 
   return (
-    <div className="mb-4 space-y-2">
-      {/* Controls bar */}
+    <div className="mb-4">
       <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 backdrop-blur-sm">
         {/* Speaker icon */}
         <svg
@@ -192,7 +136,7 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
           {(["EN", "HI", "HINGLISH"] as Lang[]).map((key) => (
             <button
               key={key}
-              onClick={() => handleLangChange(key)}
+              onClick={() => handleLangSwitch(key)}
               className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
                 lang === key
                   ? "bg-indigo-500/20 text-indigo-400"
@@ -252,16 +196,7 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
 
       {/* Error message */}
       {error && (
-        <p className="px-1 text-[11px] text-red-400/80">{error}</p>
-      )}
-
-      {/* Translated text display */}
-      {displayText && (
-        <div className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-          <p className="text-xs leading-relaxed text-gray-400">
-            {displayText}
-          </p>
-        </div>
+        <p className="mt-1 px-1 text-[11px] text-red-400/80">{error}</p>
       )}
     </div>
   );

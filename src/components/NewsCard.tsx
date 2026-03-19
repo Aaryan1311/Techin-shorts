@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import AudioPlayer from "./AudioPlayer";
+import AudioPlayer, { type Lang } from "./AudioPlayer";
 
 interface Tag {
   id: string;
@@ -32,6 +32,8 @@ interface NewsCardProps {
   total: number;
 }
 
+const LS_KEY = "techie-shorts-audio-lang";
+
 export default function NewsCard({ news, index, total }: NewsCardProps) {
   const router = useRouter();
   const [likes, setLikes] = useState(news.likeCount);
@@ -44,18 +46,84 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
         : null
   );
 
+  // Language + translation state lives here so summary swaps in-place
+  const [lang, setLang] = useState<Lang>("EN");
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+
+  // Load saved language preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LS_KEY) as Lang | null;
+      if (saved && (saved === "EN" || saved === "HI" || saved === "HINGLISH")) {
+        setLang(saved);
+        if (saved !== "EN") {
+          fetchTranslation(saved, news.id);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [news.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset translation when card changes
+  useEffect(() => {
+    setTranslatedText(null);
+  }, [news.id]);
+
+  const fetchTranslation = async (targetLang: Lang, newsId: string) => {
+    setTranslating(true);
+    try {
+      const res = await fetch(`/api/news/${newsId}/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: targetLang }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTranslatedText(data.text);
+      }
+    } catch {
+      // keep original text on failure
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const handleLangChange = useCallback(
+    (newLang: Lang) => {
+      setLang(newLang);
+      setTranslatedText(null);
+
+      try {
+        localStorage.setItem(LS_KEY, newLang);
+      } catch {
+        // ignore
+      }
+
+      // Save preference (fire and forget)
+      fetch("/api/user/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredLanguage: newLang }),
+      }).catch(() => {});
+
+      if (newLang !== "EN") {
+        fetchTranslation(newLang, news.id);
+      }
+    },
+    [news.id]
+  );
+
   const handleInteract = async (type: "LIKE" | "DISLIKE") => {
     const isLike = type === "LIKE";
     const currentVote = isLike ? "like" : "dislike";
 
-    // Optimistic update
     if (voted === currentVote) {
-      // Toggle off
       if (isLike) setLikes((l) => l - 1);
       else setDislikes((d) => d - 1);
       setVoted(null);
     } else {
-      // Switch or new vote
       if (voted === "like") setLikes((l) => l - 1);
       if (voted === "dislike") setDislikes((d) => d - 1);
       if (isLike) setLikes((l) => l + 1);
@@ -82,6 +150,12 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
       );
     }
   };
+
+  // Display the right text based on language
+  const displaySummary =
+    lang === "EN"
+      ? news.summary
+      : translatedText || news.summary;
 
   const timeAgo = getTimeAgo(news.publishedAt || news.createdAt);
 
@@ -118,13 +192,28 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
           {news.title}
         </h2>
 
-        {/* Summary */}
-        <p className="mb-4 flex-1 text-base leading-relaxed text-gray-300">
-          {news.summary}
-        </p>
+        {/* Summary — swaps in-place based on language */}
+        <div className="relative mb-4 flex-1">
+          <p
+            className={`text-base leading-relaxed text-gray-300 transition-opacity duration-200 ${
+              translating ? "opacity-50" : "opacity-100"
+            }`}
+          >
+            {displaySummary}
+          </p>
+          {translating && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+            </div>
+          )}
+        </div>
 
         {/* Audio player */}
-        <AudioPlayer text={news.summary} newsId={news.id} />
+        <AudioPlayer
+          newsId={news.id}
+          lang={lang}
+          onLangChange={handleLangChange}
+        />
 
         {/* Action buttons */}
         <div className="mb-5 grid grid-cols-3 gap-2">

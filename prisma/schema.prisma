@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  avatarUrl String?
+
+  preferredLanguage Language @default(ENGLISH)
+
+  tagFollows        UserTagFollow[]
+  newsInteractions  UserNewsInteraction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  slug  String @unique
+  color String @default("#6366f1") // Tailwind indigo-500
+
+  newsItems NewsTag[]
+  followers UserTagFollow[]
+
+  createdAt DateTime @default(now())
+
+  @@map("tags")
+}
+
+model News {
+  id       String @id @default(cuid())
+  title    String
+  summary  String // 60-80 word short summary shown on the card
+  sourceUrl String? // original article link
+  imageUrl  String?
+
+  // AI-generated extended content (populated later via Claude API)
+  detailContent   String? // full "Read Detail" content
+  futureImpact    String? // "Future Impact" section
+  buildOnThis     String? // "Build on This" project ideas
+
+  // Audio URLs for each language (populated later via TTS)
+  audioUrlEn      String?
+  audioUrlHi      String?
+  audioUrlHinglish String?
+
+  // Engagement metrics (denormalized for fast reads)
+  likeCount    Int @default(0)
+  dislikeCount Int @default(0)
+  viewCount    Int @default(0)
+
+  // If dislike ratio is too high, stop recommending
+  isActive Boolean @default(true)
+
+  tags         NewsTag[]
+  interactions UserNewsInteraction[]
+
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("news")
+}
+
+// Many-to-many: News <-> Tag
+model NewsTag {
+  newsId String
+  tagId  String
+
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([newsId, tagId])
+  @@map("news_tags")
+}
+
+// Which tags a user follows
+model UserTagFollow {
+  userId String
+  tagId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, tagId])
+  @@map("user_tag_follows")
+}
+
+// Like/dislike tracking per user per news item
+model UserNewsInteraction {
+  id     String          @id @default(cuid())
+  userId String
+  newsId String
+
+  type   InteractionType // LIKE or DISLIKE
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, newsId]) // one interaction per user per news item
+  @@map("user_news_interactions")
+}
+
+enum InteractionType {
+  LIKE
+  DISLIKE
+}
+
+enum Language {
+  ENGLISH
+  HINDI
+  HINGLISH
+}

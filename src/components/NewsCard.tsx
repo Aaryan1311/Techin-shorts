@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AudioPlayer from "./AudioPlayer";
 
 interface Tag {
   id: string;
@@ -118,9 +119,12 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
         </h2>
 
         {/* Summary */}
-        <p className="mb-6 flex-1 text-base leading-relaxed text-gray-300">
+        <p className="mb-4 flex-1 text-base leading-relaxed text-gray-300">
           {news.summary}
         </p>
+
+        {/* Audio player */}
+        <AudioPlayer text={news.summary} newsId={news.id} />
 
         {/* Action buttons */}
         <div className="mb-5 grid grid-cols-3 gap-2">

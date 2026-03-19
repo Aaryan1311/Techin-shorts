@@ -22,6 +22,7 @@ interface NewsItem {
   publishedAt: string;
   createdAt: string;
   tags: Tag[];
+  userInteraction?: string | null;
 }
 
 interface NewsCardProps {
@@ -34,37 +35,50 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
   const router = useRouter();
   const [likes, setLikes] = useState(news.likeCount);
   const [dislikes, setDislikes] = useState(news.dislikeCount);
-  const [voted, setVoted] = useState<"like" | "dislike" | null>(null);
+  const [voted, setVoted] = useState<"like" | "dislike" | null>(
+    news.userInteraction === "LIKE"
+      ? "like"
+      : news.userInteraction === "DISLIKE"
+        ? "dislike"
+        : null
+  );
 
-  const handleLike = async () => {
-    if (voted === "like") {
-      setLikes((l) => l - 1);
+  const handleInteract = async (type: "LIKE" | "DISLIKE") => {
+    const isLike = type === "LIKE";
+    const currentVote = isLike ? "like" : "dislike";
+
+    // Optimistic update
+    if (voted === currentVote) {
+      // Toggle off
+      if (isLike) setLikes((l) => l - 1);
+      else setDislikes((d) => d - 1);
       setVoted(null);
     } else {
-      if (voted === "dislike") setDislikes((d) => d - 1);
-      setLikes((l) => l + 1);
-      setVoted("like");
-      await fetch(`/api/news/${news.id}/interact`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "LIKE" }),
-      });
-    }
-  };
-
-  const handleDislike = async () => {
-    if (voted === "dislike") {
-      setDislikes((d) => d - 1);
-      setVoted(null);
-    } else {
+      // Switch or new vote
       if (voted === "like") setLikes((l) => l - 1);
-      setDislikes((d) => d + 1);
-      setVoted("dislike");
-      await fetch(`/api/news/${news.id}/interact`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "DISLIKE" }),
-      });
+      if (voted === "dislike") setDislikes((d) => d - 1);
+      if (isLike) setLikes((l) => l + 1);
+      else setDislikes((d) => d + 1);
+      setVoted(currentVote);
+    }
+
+    const res = await fetch(`/api/news/${news.id}/interact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      setLikes(data.likeCount);
+      setDislikes(data.dislikeCount);
+      setVoted(
+        data.userInteraction === "LIKE"
+          ? "like"
+          : data.userInteraction === "DISLIKE"
+            ? "dislike"
+            : null
+      );
     }
   };
 
@@ -158,7 +172,7 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
           {/* Reactions */}
           <div className="flex items-center gap-3">
             <button
-              onClick={handleLike}
+              onClick={() => handleInteract("LIKE")}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
                 voted === "like"
                   ? "bg-emerald-500/20 text-emerald-400"
@@ -181,7 +195,7 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
               <span className="font-medium">{likes}</span>
             </button>
             <button
-              onClick={handleDislike}
+              onClick={() => handleInteract("DISLIKE")}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
                 voted === "dislike"
                   ? "bg-red-500/20 text-red-400"

@@ -25,6 +25,7 @@ interface NewsItem {
   publishedAt: string;
   createdAt: string;
   tags: Tag[];
+  userInteraction?: string | null;
 }
 
 export default function NewsFeed() {
@@ -32,7 +33,10 @@ export default function NewsFeed() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [feedMode, setFeedMode] = useState<"all" | "personal">("all");
   const [loading, setLoading] = useState(true);
+
+  const isLoggedIn = status === "authenticated" && !!session?.user;
 
   useEffect(() => {
     fetch("/api/tags")
@@ -40,16 +44,28 @@ export default function NewsFeed() {
       .then(setTags);
   }, []);
 
+  // Switch to "all" if user logs out while on "personal"
+  useEffect(() => {
+    if (!isLoggedIn && feedMode === "personal") {
+      setFeedMode("all");
+    }
+  }, [isLoggedIn, feedMode]);
+
   useEffect(() => {
     setLoading(true);
-    const url = activeTag ? `/api/news?tag=${activeTag}` : "/api/news";
+    const params = new URLSearchParams();
+    if (activeTag) params.set("tag", activeTag);
+    if (feedMode === "personal") params.set("feed", "personal");
+    const qs = params.toString();
+    const url = `/api/news${qs ? `?${qs}` : ""}`;
+
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
         setNews(data);
         setLoading(false);
       });
-  }, [activeTag]);
+  }, [activeTag, feedMode]);
 
   return (
     <div className="flex h-dvh flex-col bg-gray-950">
@@ -112,12 +128,40 @@ export default function NewsFeed() {
           </div>
         </div>
 
-        {/* Tag filter */}
-        <TagFilterBar
-          tags={tags}
-          activeTag={activeTag}
-          onTagSelect={setActiveTag}
-        />
+        {/* Feed toggle + Tag filter */}
+        <div className="flex items-center gap-2 px-4 pb-1 pt-0.5">
+          {isLoggedIn && (
+            <div className="mr-1 flex shrink-0 rounded-lg border border-white/10 bg-white/5 p-0.5">
+              <button
+                onClick={() => setFeedMode("all")}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                  feedMode === "all"
+                    ? "bg-white/10 text-white"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                All News
+              </button>
+              <button
+                onClick={() => setFeedMode("personal")}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                  feedMode === "personal"
+                    ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-400"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                For You
+              </button>
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <TagFilterBar
+              tags={tags}
+              activeTag={activeTag}
+              onTagSelect={setActiveTag}
+            />
+          </div>
+        </div>
       </header>
 
       {/* Feed */}
@@ -133,8 +177,18 @@ export default function NewsFeed() {
           <div className="text-center">
             <p className="text-lg text-gray-400">No news found</p>
             <p className="mt-1 text-sm text-gray-600">
-              Try selecting a different tag
+              {feedMode === "personal"
+                ? "Follow more tags to see personalized news"
+                : "Try selecting a different tag"}
             </p>
+            {feedMode === "personal" && (
+              <button
+                onClick={() => setFeedMode("all")}
+                className="mt-4 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-sm font-medium text-indigo-400 transition-all hover:bg-indigo-500/20"
+              >
+                Browse All News
+              </button>
+            )}
           </div>
         </div>
       ) : (

@@ -16,6 +16,7 @@ model User {
 
   preferredLanguage Language @default(ENGLISH)
   onboarded         Boolean @default(false)
+  isAdmin           Boolean @default(false)
 
   tagFollows        UserTagFollow[]
   newsInteractions  UserNewsInteraction[]

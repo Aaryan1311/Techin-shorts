@@ -28,6 +28,7 @@ export const authOptions: AuthOptions = {
           email: user.email,
           name: user.name,
           onboarded: user.onboarded,
+          isAdmin: user.isAdmin,
         };
       },
     }),
@@ -41,6 +42,7 @@ export const authOptions: AuthOptions = {
       if (user) {
         token.id = user.id;
         token.onboarded = (user as { onboarded?: boolean }).onboarded;
+        token.isAdmin = (user as { isAdmin?: boolean }).isAdmin;
       }
       if (trigger === "update" && session?.onboarded !== undefined) {
         token.onboarded = session.onboarded;
@@ -52,6 +54,8 @@ export const authOptions: AuthOptions = {
         (session.user as { id?: string }).id = token.id as string;
         (session.user as { onboarded?: boolean }).onboarded =
           token.onboarded as boolean;
+        (session.user as { isAdmin?: boolean }).isAdmin =
+          token.isAdmin as boolean;
       }
       return session;
     },

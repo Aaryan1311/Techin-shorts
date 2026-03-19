@@ -35,8 +35,41 @@ export default function NewsFeed() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [feedMode, setFeedMode] = useState<"all" | "personal">("all");
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
+  const [fetchMsg, setFetchMsg] = useState<string | null>(null);
 
   const isLoggedIn = status === "authenticated" && !!session?.user;
+  const isAdmin = isLoggedIn && (session?.user as { isAdmin?: boolean })?.isAdmin;
+
+  const handleFetchNews = async () => {
+    setFetching(true);
+    setFetchMsg(null);
+    try {
+      const secret = prompt("Enter admin secret:");
+      if (!secret) {
+        setFetching(false);
+        return;
+      }
+      const res = await fetch("/api/admin/fetch-news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFetchMsg(`Fetched ${data.processed} new articles`);
+        // Refresh the feed
+        setActiveTag(null);
+      } else {
+        setFetchMsg(data.error || "Failed to fetch news");
+      }
+    } catch {
+      setFetchMsg("Network error");
+    } finally {
+      setFetching(false);
+      setTimeout(() => setFetchMsg(null), 5000);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/tags")
@@ -102,6 +135,15 @@ export default function NewsFeed() {
                 <span className="hidden text-sm text-gray-400 sm:inline">
                   {session.user.name || session.user.email}
                 </span>
+                {isAdmin && (
+                  <button
+                    onClick={handleFetchNews}
+                    disabled={fetching}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20 disabled:opacity-50"
+                  >
+                    {fetching ? "Fetching..." : "Fetch News"}
+                  </button>
+                )}
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
                   className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-white/10"
@@ -163,6 +205,13 @@ export default function NewsFeed() {
           </div>
         </div>
       </header>
+
+      {/* Fetch toast */}
+      {fetchMsg && (
+        <div className="mx-4 mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-400">
+          {fetchMsg}
+        </div>
+      )}
 
       {/* Feed */}
       {loading ? (

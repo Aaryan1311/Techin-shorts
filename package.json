@@ -13,13 +13,15 @@
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "google-translate-api-x": "^10.7.2",
     "next": "^14.2.35",
     "next-auth": "^4.24.13",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

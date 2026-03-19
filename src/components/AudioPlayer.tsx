@@ -20,7 +20,7 @@ const LS_KEY = "techie-shorts-audio-lang";
 export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
   const [lang, setLang] = useState<Lang>("EN");
   const [playing, setPlaying] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<string | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -97,7 +97,7 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
         setTranslatedText(data.text);
       }
     } catch {
-      // Translation is optional for display
+      // Translation display is optional
     }
   };
 
@@ -109,11 +109,11 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
     }
 
     setError(null);
-    setLoading(true);
 
     try {
       // Step 1: Translate if needed
       if (lang !== "EN") {
+        setLoadingStep("Translating...");
         const translateRes = await fetch(`/api/news/${newsId}/translate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -128,6 +128,7 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
       }
 
       // Step 2: Get audio
+      setLoadingStep("Generating audio...");
       const audioRes = await fetch(`/api/news/${newsId}/audio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,10 +161,11 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setLoading(false);
+      setLoadingStep(null);
     }
   };
 
+  const isLoading = !!loadingStep;
   const displayText = lang === "EN" ? null : translatedText;
 
   return (
@@ -208,16 +210,16 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
         {/* Play/Pause/Loading */}
         <button
           onClick={togglePlay}
-          disabled={loading}
+          disabled={isLoading}
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
-            loading
+            isLoading
               ? "bg-white/5 text-gray-500"
               : playing
                 ? "bg-indigo-500/20 text-indigo-400 shadow-sm shadow-indigo-500/20"
                 : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
           }`}
         >
-          {loading ? (
+          {isLoading ? (
             <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-500 border-t-indigo-400" />
           ) : playing ? (
             <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -242,9 +244,9 @@ export default function AudioPlayer({ text, newsId }: AudioPlayerProps) {
           </div>
         )}
 
-        {/* Loading label */}
-        {loading && (
-          <span className="text-[10px] text-gray-500">Generating...</span>
+        {/* Loading step label */}
+        {loadingStep && (
+          <span className="text-[10px] text-gray-500">{loadingStep}</span>
         )}
       </div>
 

@@ -1,6 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOpenAI } from "@/lib/openai";
+import translate from "google-translate-api-x";
+
+// Hindi Devanagari to Roman transliteration map
+const TRANSLIT_MAP: Record<string, string> = {
+  "अ": "a", "आ": "aa", "इ": "i", "ई": "ee", "उ": "u", "ऊ": "oo",
+  "ए": "e", "ऐ": "ai", "ओ": "o", "औ": "au", "अं": "an", "अः": "ah",
+  "ऋ": "ri",
+  "क": "ka", "ख": "kha", "ग": "ga", "घ": "gha", "ङ": "nga",
+  "च": "cha", "छ": "chha", "ज": "ja", "झ": "jha", "ञ": "nya",
+  "ट": "ta", "ठ": "tha", "ड": "da", "ढ": "dha", "ण": "na",
+  "त": "ta", "थ": "tha", "द": "da", "ध": "dha", "न": "na",
+  "प": "pa", "फ": "pha", "ब": "ba", "भ": "bha", "म": "ma",
+  "य": "ya", "र": "ra", "ल": "la", "व": "va", "श": "sha",
+  "ष": "sha", "स": "sa", "ह": "ha",
+  "क्ष": "ksha", "त्र": "tra", "ज्ञ": "gya",
+  "ा": "a", "ि": "i", "ी": "ee", "ु": "u", "ू": "oo",
+  "े": "e", "ै": "ai", "ो": "o", "ौ": "au",
+  "ं": "n", "ः": "h", "ँ": "n",
+  "्": "", "़": "",
+  "।": ".", "॥": ".",
+  "०": "0", "१": "1", "२": "2", "३": "3", "४": "4",
+  "५": "5", "६": "6", "७": "7", "८": "8", "९": "9",
+};
+
+function transliterateHindiToRoman(hindi: string): string {
+  let result = "";
+  let i = 0;
+  while (i < hindi.length) {
+    // Try two-char sequences first (conjuncts, vowel signs)
+    if (i + 1 < hindi.length) {
+      const twoChar = hindi.substring(i, i + 2);
+      if (TRANSLIT_MAP[twoChar] !== undefined) {
+        result += TRANSLIT_MAP[twoChar];
+        i += 2;
+        continue;
+      }
+    }
+    const oneChar = hindi[i];
+    if (TRANSLIT_MAP[oneChar] !== undefined) {
+      result += TRANSLIT_MAP[oneChar];
+    } else {
+      result += oneChar; // Keep as-is (English chars, punctuation, spaces)
+    }
+    i++;
+  }
+  // Clean up double spaces and trim
+  return result.replace(/\s+/g, " ").trim();
+}
 
 export async function POST(
   request: NextRequest,
@@ -31,38 +78,38 @@ export async function POST(
     return NextResponse.json({ text: news[field] });
   }
 
-  // Check for API key
-  if (!process.env.OPENAI_API_KEY) {
+  try {
+    // Step 1: Always translate to Hindi first
+    let hindiText = news.summaryHi;
+    if (!hindiText) {
+      const hiResult = await translate(news.summary, { to: "hi" });
+      hindiText = hiResult.text;
+      // Cache Hindi translation
+      await prisma.news.update({
+        where: { id: params.id },
+        data: { summaryHi: hindiText },
+      });
+    }
+
+    if (language === "HI") {
+      return NextResponse.json({ text: hindiText });
+    }
+
+    // Step 2: For HINGLISH, transliterate Hindi to Roman script
+    const hinglishText = transliterateHindiToRoman(hindiText);
+
+    // Cache Hinglish translation
+    await prisma.news.update({
+      where: { id: params.id },
+      data: { summaryHinglish: hinglishText },
+    });
+
+    return NextResponse.json({ text: hinglishText });
+  } catch (err) {
+    console.error("Translation error:", err);
     return NextResponse.json(
-      { error: "OpenAI API key not configured" },
+      { error: "Translation service temporarily unavailable" },
       { status: 503 }
     );
   }
-
-  const openai = getOpenAI();
-
-  const systemPrompt =
-    language === "HI"
-      ? "You are a translator. Translate the following tech news summary into Hindi using देवनागरी script. Keep technical terms (like API, GitHub, JavaScript, etc.) in English. Output only the translation, nothing else."
-      : "You are a translator. Translate the following tech news summary into Hinglish — Hindi words written in Roman/English letters, the way young Indian developers text each other. Keep technical terms in English. Example style: 'GitHub ne apna naya Copilot agent mode launch kiya hai jo failing tests detect kar sakta hai'. Output only the translation, nothing else.";
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: news.summary },
-    ],
-    temperature: 0.3,
-    max_tokens: 500,
-  });
-
-  const translated = completion.choices[0]?.message?.content?.trim() || "";
-
-  // Cache in database
-  await prisma.news.update({
-    where: { id: params.id },
-    data: { [field]: translated },
-  });
-
-  return NextResponse.json({ text: translated });
 }

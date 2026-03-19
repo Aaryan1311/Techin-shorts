@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOpenAI } from "@/lib/openai";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+
+const ELEVENLABS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
+const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel — works for EN, HI, Hinglish
 
 export async function POST(
   request: NextRequest,
@@ -55,9 +57,9 @@ export async function POST(
   }
 
   // Check for API key
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.ELEVENLABS_API_KEY) {
     return NextResponse.json(
-      { error: "OpenAI API key not configured" },
+      { error: "ElevenLabs API key not configured" },
       { status: 503 }
     );
   }
@@ -84,16 +86,31 @@ export async function POST(
     textToSpeak = news.summaryHinglish;
   }
 
-  const openai = getOpenAI();
-
-  // Use different voices for different languages
-  const voice = lang === "EN" ? "nova" : "shimmer";
-
-  const mp3Response = await openai.audio.speech.create({
-    model: "tts-1",
-    voice,
-    input: textToSpeak,
+  // Call ElevenLabs TTS
+  const ttsResponse = await fetch(`${ELEVENLABS_BASE}/${VOICE_ID}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "xi-api-key": process.env.ELEVENLABS_API_KEY,
+    },
+    body: JSON.stringify({
+      text: textToSpeak,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75,
+      },
+    }),
   });
+
+  if (!ttsResponse.ok) {
+    const errText = await ttsResponse.text();
+    console.error("ElevenLabs error:", ttsResponse.status, errText);
+    return NextResponse.json(
+      { error: "Audio generation failed" },
+      { status: 502 }
+    );
+  }
 
   // Save MP3 to public/audio/
   const audioDir = path.join(process.cwd(), "public", "audio");
@@ -101,7 +118,7 @@ export async function POST(
 
   const filename = `${news.id}-${lang.toLowerCase()}.mp3`;
   const filepath = path.join(audioDir, filename);
-  const buffer = Buffer.from(await mp3Response.arrayBuffer());
+  const buffer = Buffer.from(await ttsResponse.arrayBuffer());
   await writeFile(filepath, buffer);
 
   const audioUrl = `/audio/${filename}`;

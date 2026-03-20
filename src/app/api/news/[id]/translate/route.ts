@@ -1,123 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import translate from "google-translate-api-x";
+import Groq from "groq-sdk";
 
-// Devanagari to Roman transliteration — keeps English/ASCII words intact
-const DEVANAGARI_MAP: Record<string, string> = {
-  // Conjuncts (check before single chars)
-  "क्ष": "ksh", "त्र": "tr", "ज्ञ": "gya", "श्र": "shr",
-  // Consonants
-  "क": "k", "ख": "kh", "ग": "g", "घ": "gh", "ङ": "ng",
-  "च": "ch", "छ": "chh", "ज": "j", "झ": "jh", "ञ": "ny",
-  "ट": "t", "ठ": "th", "ड": "d", "ढ": "dh", "ण": "n",
-  "त": "t", "थ": "th", "द": "d", "ध": "dh", "न": "n",
-  "प": "p", "फ": "ph", "ब": "b", "भ": "bh", "म": "m",
-  "य": "y", "र": "r", "ल": "l", "व": "v", "श": "sh",
-  "ष": "sh", "स": "s", "ह": "h",
-  // Independent vowels
-  "अ": "a", "आ": "aa", "इ": "i", "ई": "ee", "उ": "u", "ऊ": "oo",
-  "ए": "e", "ऐ": "ai", "ओ": "o", "औ": "au", "ऋ": "ri",
-  // Dependent vowel signs (matras)
-  "ा": "a", "ि": "i", "ी": "ee", "ु": "u", "ू": "oo",
-  "े": "e", "ै": "ai", "ो": "o", "ौ": "au", "ृ": "ri",
-  // Modifiers
-  "ं": "n", "ँ": "n", "ः": "h",
-  "्": "", "़": "",
-  // Punctuation
-  "।": ".", "॥": ".",
-  // Numerals
-  "०": "0", "१": "1", "२": "2", "३": "3", "४": "4",
-  "५": "5", "६": "6", "७": "7", "८": "8", "९": "9",
-};
+/**
+ * Translate English text to natural Hinglish using Groq LLM.
+ * Technical terms, proper nouns, numbers, and commonly used English words
+ * stay in English — only conversational connectors switch to Hindi (Roman script).
+ */
+async function translateToHinglish(englishText: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY not configured");
 
-function isDevanagari(ch: string): boolean {
-  const code = ch.charCodeAt(0);
-  return code >= 0x0900 && code <= 0x097f;
-}
+  const groq = new Groq({ apiKey });
 
-function transliterateToken(token: string): string {
-  // If token has no Devanagari, return as-is (English word, number, etc.)
-  let hasDevanagari = false;
-  for (let i = 0; i < token.length; i++) {
-    if (isDevanagari(token[i])) { hasDevanagari = true; break; }
+  const prompt = `Convert this English tech news summary to Hinglish — the way Indian software developers actually talk to each other in casual conversation.
+
+CRITICAL RULES:
+- Keep ALL technical terms in English (API, server, deploy, production, framework, bug, database, cloud, AI, ML, model, pipeline, endpoint, cache, etc.)
+- Keep ALL commonly used English words in English (demo, fail, issue, result, system, process, report, available, update, launch, release, version, feature, company, user, data, team, etc.)
+- Keep ALL proper nouns in English (GitHub, Google, AWS, Python, React, etc.)
+- Keep ALL numbers and percentages in English (60%, v2.0, 1000+, etc.)
+- ONLY convert the conversational connecting words to Hindi written in Roman/Latin script
+- It should sound natural — like a message in a developer WhatsApp group
+- Do NOT use Devanagari script at all — everything must be in Roman/Latin letters
+
+Example input: "GitHub Copilot's new agent mode can detect failing tests, trace the root cause, and submit a fix — all without developer intervention."
+Example output: "GitHub Copilot ka naya agent mode failing tests detect kar sakta hai, root cause trace kar sakta hai, aur fix submit kar sakta hai — sab kuch bina developer ke intervention ke."
+
+Now convert this text:
+${englishText}`;
+
+  // Rate-limit: 3s delay before calling
+  await new Promise((r) => setTimeout(r, 3000));
+
+  try {
+    const result = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+    });
+    const output = result.choices[0]?.message?.content?.trim();
+    if (!output) throw new Error("Empty response from Groq");
+    return output;
+  } catch (err: unknown) {
+    const is429 =
+      err instanceof Error &&
+      (err.message.includes("429") || err.message.includes("rate_limit"));
+    if (!is429) throw err;
+
+    console.warn("Groq rate limited for Hinglish translation, waiting 60s...");
+    await new Promise((r) => setTimeout(r, 60_000));
+
+    const retry = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+    });
+    const output = retry.choices[0]?.message?.content?.trim();
+    if (!output) throw new Error("Empty response from Groq after retry");
+    return output;
   }
-  if (!hasDevanagari) return token;
-
-  let result = "";
-  let i = 0;
-  let lastWasConsonant = false;
-
-  while (i < token.length) {
-    // Try 2-char conjuncts first
-    if (i + 1 < token.length) {
-      const two = token[i] + token[i + 1];
-      if (DEVANAGARI_MAP[two] !== undefined) {
-        result += DEVANAGARI_MAP[two];
-        lastWasConsonant = true;
-        i += 2;
-        continue;
-      }
-    }
-
-    const ch = token[i];
-    if (DEVANAGARI_MAP[ch] !== undefined) {
-      const mapped = DEVANAGARI_MAP[ch];
-
-      // Halant (virama) suppresses inherent 'a'
-      if (ch === "्") {
-        lastWasConsonant = false;
-        i++;
-        continue;
-      }
-
-      // Vowel sign after consonant — just add the vowel sound
-      if ("ािीुूेैोौृ".includes(ch)) {
-        result += mapped;
-        lastWasConsonant = false;
-        i++;
-        continue;
-      }
-
-      // If this is a consonant and previous was also a consonant without
-      // vowel sign, add inherent 'a' for the previous consonant
-      if (lastWasConsonant && mapped && "कखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह".includes(ch)) {
-        result += "a";
-      }
-
-      result += mapped;
-      // Check if this is a consonant
-      lastWasConsonant = "कखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह".includes(ch);
-    } else if (!isDevanagari(ch)) {
-      // Non-Devanagari char (space, punctuation, English)
-      if (lastWasConsonant) result += "a";
-      lastWasConsonant = false;
-      result += ch;
-    } else {
-      // Unknown Devanagari char
-      if (lastWasConsonant) result += "a";
-      lastWasConsonant = false;
-      result += ch;
-    }
-    i++;
-  }
-  // Trailing consonant gets inherent 'a'
-  if (lastWasConsonant) result += "a";
-
-  return result;
-}
-
-function hindiToHinglish(hindiText: string): string {
-  // Split by spaces, transliterate each token independently
-  // This preserves English words that Google Translate might keep
-  return hindiText
-    .split(/(\s+)/)
-    .map((part) => {
-      if (/^\s+$/.test(part)) return part;
-      return transliterateToken(part);
-    })
-    .join("")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 export async function POST(
@@ -144,30 +87,30 @@ export async function POST(
   }
 
   // Return cached translation if available
-  const field = language === "HI" ? "summaryHi" : "summaryHinglish";
-  if (news[field]) {
-    return NextResponse.json({ text: news[field] });
+  if (language === "HI" && news.summaryHi) {
+    return NextResponse.json({ text: news.summaryHi });
+  }
+  if (language === "HINGLISH" && news.summaryHinglish) {
+    return NextResponse.json({ text: news.summaryHinglish });
   }
 
   try {
-    // Step 1: Always get Hindi translation first
-    let hindiText = news.summaryHi;
-    if (!hindiText) {
-      const hiResult = await translate(news.summary, { to: "hi" });
-      hindiText = hiResult.text;
-      await prisma.news.update({
-        where: { id: params.id },
-        data: { summaryHi: hindiText },
-      });
-    }
-
     if (language === "HI") {
+      // Hindi (Devanagari) — use Google Translate as before
+      let hindiText = news.summaryHi;
+      if (!hindiText) {
+        const hiResult = await translate(news.summary, { to: "hi" });
+        hindiText = hiResult.text;
+        await prisma.news.update({
+          where: { id: params.id },
+          data: { summaryHi: hindiText },
+        });
+      }
       return NextResponse.json({ text: hindiText });
     }
 
-    // Step 2: For HINGLISH — transliterate Hindi to Roman,
-    // preserving any English words Google Translate kept
-    const hinglishText = hindiToHinglish(hindiText);
+    // HINGLISH — use Groq LLM to generate natural Hinglish directly from English
+    const hinglishText = await translateToHinglish(news.summary);
 
     await prisma.news.update({
       where: { id: params.id },

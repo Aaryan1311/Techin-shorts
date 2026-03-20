@@ -44,7 +44,6 @@ const RSS_FEEDS = [
   { name: "TechCrunch", source: "techcrunch", url: "https://techcrunch.com/feed/" },
   { name: "The Verge", source: "theverge", url: "https://www.theverge.com/rss/index.xml" },
   { name: "GitHub Blog", source: "github", url: "https://github.blog/feed/" },
-  { name: "InfoQ", source: "infoq", url: "https://www.infoq.com/feed/" },
   { name: "SD Times", source: "sdtimes", url: "https://sdtimes.com/feed/" },
   { name: "BleepingComputer", source: "bleepingcomputer", url: "https://www.bleepingcomputer.com/feed/" },
   { name: "Product Hunt", source: "producthunt", url: "https://www.producthunt.com/feed" },

@@ -24,17 +24,41 @@ function getGroq(): Groq {
   return new Groq({ apiKey });
 }
 
-function parseJSON(text: string): Record<string, unknown> | null {
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+/**
+ * Robust JSON parser that handles common LLM output issues:
+ * - Strips markdown code fences
+ * - Strips text before first { and after last }
+ * - Handles trailing commas
+ * - Handles missing closing braces
+ */
+function robustParseJSON(text: string): Record<string, unknown> | null {
+  let cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace === -1) return null;
+
+  if (lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  } else {
+    cleaned = cleaned.slice(firstBrace) + "}";
+  }
+
   try {
     return JSON.parse(cleaned);
   } catch {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) return null;
+    // Fix trailing commas
+    const fixed = cleaned.replace(/,\s*([}\]])/g, "$1");
     try {
-      return JSON.parse(match[0]);
+      return JSON.parse(fixed);
     } catch {
-      return null;
+      // Fix unescaped newlines in strings
+      const fixed2 = fixed.replace(/(?<=:\s*"[^"]*)\n/g, "\\n");
+      try {
+        return JSON.parse(fixed2);
+      } catch {
+        return null;
+      }
     }
   }
 }
@@ -80,6 +104,7 @@ export interface ClassificationResult {
   reasoning: string;
   suggestedTags: string[];
   isTrending: boolean;
+  roleRelevance: Record<string, number>;
 }
 
 export async function classifyArticle(
@@ -92,6 +117,8 @@ export async function classifyArticle(
 
   const prompt = `You are a senior tech news editor for a developer-focused news app called Techie Shorts. Your job is to evaluate whether an article deserves to be shown to busy software developers.
 
+This is for a tech professional news app. ONLY tech news qualifies. Political news, general business, space, automotive (unless self-driving/AI related), and celebrity news are NOT relevant even if they mention a tech company. Jeff Bezos buying companies is NOT tech news unless it's directly about AWS/tech. Focus on: software releases, AI model launches, developer tool updates, security vulnerabilities, open source projects, cloud platform changes, programming language updates, startup funding IN TECH, acquisitions IN TECH.
+
 EVALUATE the article on these criteria and return a JSON response:
 
 {
@@ -102,7 +129,8 @@ EVALUATE the article on these criteria and return a JSON response:
   "relevanceForDevs": 1-10,
   "reasoning": "one line explaining your rating",
   "suggestedTags": ["tag1", "tag2"],
-  "isTrending": true/false
+  "isTrending": true/false,
+  "roleRelevance": { "developer": 0.0-1.0, "pm": 0.0-1.0, "qa": 0.0-1.0, "devops": 0.0-1.0, "designer": 0.0-1.0, "data_analyst": 0.0-1.0 }
 }
 
 RULES FOR SCORING:
@@ -131,15 +159,37 @@ Description: ${description.slice(0, 1500)}
 Respond ONLY with valid JSON, no markdown code fences:`;
 
   const text = await callGroq(groq, prompt, title);
-  const parsed = parseJSON(text);
+  let parsed = robustParseJSON(text);
+
+  // Retry with strict prompt if parsing fails
   if (!parsed) {
-    console.error(`[Stage 1] Could not parse classification for "${title}"`);
-    return null;
+    console.warn(`[Stage 1] JSON parse failed for "${title}", retrying with strict prompt...`);
+    const retryText = await callGroq(
+      groq,
+      `Return ONLY valid JSON. Classify this tech article: "${title}" from ${source}. Return: { "isNews": true/false, "category": "...", "qualityScore": 1-10, "trendingScore": 1-10, "relevanceForDevs": 1-10, "reasoning": "...", "suggestedTags": [], "isTrending": false, "roleRelevance": {} }`,
+      title
+    );
+    parsed = robustParseJSON(retryText);
+
+    if (!parsed) {
+      console.error(`[Stage 1] Could not parse classification for "${title}" after retry`);
+      return null;
+    }
   }
 
   const suggestedTags = (
     Array.isArray(parsed.suggestedTags) ? parsed.suggestedTags : []
   ).filter((t: string) => VALID_TAGS.includes(t) && t !== "trending");
+
+  // Parse roleRelevance safely
+  const rawRoleRelevance =
+    typeof parsed.roleRelevance === "object" && parsed.roleRelevance !== null
+      ? (parsed.roleRelevance as Record<string, unknown>)
+      : {};
+  const roleRelevance: Record<string, number> = {};
+  for (const [key, val] of Object.entries(rawRoleRelevance)) {
+    roleRelevance[key] = typeof val === "number" ? val : 0;
+  }
 
   return {
     isNews: parsed.isNews === true,
@@ -150,6 +200,7 @@ Respond ONLY with valid JSON, no markdown code fences:`;
     reasoning: String(parsed.reasoning || ""),
     suggestedTags: suggestedTags.slice(0, 2),
     isTrending: parsed.isTrending === true,
+    roleRelevance,
   };
 }
 
@@ -196,10 +247,22 @@ ${content.slice(0, 3000)}
 Respond ONLY with valid JSON, no markdown code fences:`;
 
   const text = await callGroq(groq, prompt, title);
-  const parsed = parseJSON(text);
+  let parsed = robustParseJSON(text);
+
+  // Retry with strict prompt if parsing fails
   if (!parsed) {
-    console.error(`[Stage 2] Could not parse summary for "${title}"`);
-    return null;
+    console.warn(`[Stage 2] JSON parse failed for "${title}", retrying...`);
+    const retryText = await callGroq(
+      groq,
+      `Return ONLY valid JSON. Summarize this tech article: "${title}". Return: { "summary": "60-80 words", "detailContent": "200-300 words", "futureImpact": "150-200 words", "buildIdeas": [{"name":"...", "difficulty":"Easy|Medium|Hard", "description":"..."}], "tags": [${tagList ? `"${tagList}"` : ""}] }`,
+      title
+    );
+    parsed = robustParseJSON(retryText);
+
+    if (!parsed) {
+      console.error(`[Stage 2] Could not parse summary for "${title}" after retry`);
+      return null;
+    }
   }
 
   // Convert buildIdeas array → formatted string
@@ -216,6 +279,10 @@ Respond ONLY with valid JSON, no markdown code fences:`;
     buildOnThis = ensureString(rawIdeas);
   }
 
+  // Safety: ensure detailContent and futureImpact are strings
+  const detailContent = ensureString(parsed.detailContent);
+  const futureImpact = ensureString(parsed.futureImpact);
+
   // Use tags from classification, validated
   const tags = classification.suggestedTags.filter((t) =>
     VALID_TAGS.includes(t)
@@ -226,8 +293,8 @@ Respond ONLY with valid JSON, no markdown code fences:`;
 
   return {
     summary: ensureString(parsed.summary) || "No summary available.",
-    detailContent: ensureString(parsed.detailContent),
-    futureImpact: ensureString(parsed.futureImpact),
+    detailContent,
+    futureImpact,
     buildOnThis,
     tags: tags.length > 0 ? tags : ["backend"],
   };

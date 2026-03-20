@@ -192,6 +192,9 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
           sourceUrl: item.link,
           source: item.source || null,
           imageUrl: item.imageUrl || null,
+          trendingScore: classification.trendingScore,
+          qualityScore: classification.qualityScore,
+          relevanceScore: classification.relevanceForDevs,
           publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
           tags: {
             create: tagConnections,

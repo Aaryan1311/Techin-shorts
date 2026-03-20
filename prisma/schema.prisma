@@ -14,12 +14,16 @@ model User {
   name      String?
   avatarUrl String?
 
-  preferredLanguage Language @default(ENGLISH)
-  onboarded         Boolean @default(false)
-  isAdmin           Boolean @default(false)
+  preferredLanguage Language  @default(ENGLISH)
+  onboarded         Boolean   @default(false)
+  isAdmin           Boolean   @default(false)
+  role              UserRole?
+  quizCompletedAt   DateTime?
 
   tagFollows        UserTagFollow[]
   newsInteractions  UserNewsInteraction[]
+  behaviors         UserBehavior[]
+  topicScores       UserTopicScore[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -48,7 +52,7 @@ model News {
   summaryHi        String? // Hindi translation in देवनागरी
   summaryHinglish  String? // Hinglish (romanized Hindi)
   sourceUrl  String? // original article link
-  source     String? // e.g. "hackernews", "devto", "reddit", "techcrunch", "theverge", "github"
+  source     String? // e.g. "hackernews", "reddit", "techcrunch", "theverge", "github"
   imageUrl   String?
 
   // AI-generated extended content (populated later via Claude API)
@@ -66,11 +70,17 @@ model News {
   dislikeCount Int @default(0)
   viewCount    Int @default(0)
 
+  // AI classification scores (from Stage 1 curator)
+  trendingScore    Float @default(0)
+  qualityScore     Float @default(0)
+  relevanceScore   Float @default(0)
+
   // If dislike ratio is too high, stop recommending
   isActive Boolean @default(true)
 
   tags         NewsTag[]
   interactions UserNewsInteraction[]
+  behaviors    UserBehavior[]
 
   publishedAt DateTime @default(now())
   createdAt   DateTime @default(now())
@@ -91,7 +101,7 @@ model NewsTag {
   @@map("news_tags")
 }
 
-// Which tags a user follows
+// Which tags a user follows (kept for backward compatibility)
 model UserTagFollow {
   userId String
   tagId  String
@@ -123,6 +133,39 @@ model UserNewsInteraction {
   @@map("user_news_interactions")
 }
 
+// Behavioral tracking — every user interaction with an article
+model UserBehavior {
+  id              String       @id @default(cuid())
+  userId          String
+  newsId          String
+  type            BehaviorType
+  durationSeconds Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, newsId, type])
+  @@map("user_behaviors")
+}
+
+// Precomputed interest vector per user per tag
+model UserTopicScore {
+  id        String @id @default(cuid())
+  userId    String
+  tagSlug   String
+  score     Float  @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tagSlug])
+  @@map("user_topic_scores")
+}
+
 enum InteractionType {
   LIKE
   DISLIKE
@@ -132,4 +175,25 @@ enum Language {
   ENGLISH
   HINDI
   HINGLISH
+}
+
+enum UserRole {
+  DEVELOPER
+  QA_TESTER
+  DESIGNER
+  PRODUCT_MANAGER
+  DATA_ANALYST
+  DEVOPS_ENGINEER
+  ENGINEERING_MANAGER
+  FOUNDER
+}
+
+enum BehaviorType {
+  VIEW
+  READ_SUMMARY
+  CLICK_DETAIL
+  CLICK_FUTURE
+  CLICK_BUILD
+  READ_DETAIL
+  SHARE
 }

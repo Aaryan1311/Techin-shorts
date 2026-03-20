@@ -59,7 +59,6 @@ export default function NewsCard({ news }: NewsCardProps) {
   const [showShare, setShowShare] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
 
-  // Language + translation state
   const [lang, setLang] = useState<Lang>("EN");
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
@@ -179,179 +178,157 @@ export default function NewsCard({ news }: NewsCardProps) {
 
   return (
     <>
-      <div className="flex h-full w-full flex-col bg-gray-950">
-        {/* ── Image section (top 38%) or colored accent ── */}
-        {hasImage ? (
-          <div className="relative w-full" style={{ height: "38%" }}>
-            <img
-              src={news.imageUrl!}
-              alt=""
-              className="h-full w-full object-cover"
-              onError={() => setImgFailed(true)}
-            />
-            {/* Bottom gradient blend */}
-            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-gray-950 to-transparent" />
-            {/* Share button over image */}
-            <button
-              onClick={handleShare}
-              className="absolute right-3 top-3 rounded-full bg-black/40 p-2 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
-              aria-label="Share"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <div className="relative w-full">
-            {/* Thin colored accent bar using primary tag color */}
+      <div className="flex h-full w-full items-center justify-center px-4 py-4">
+        <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
+
+          {/* Image at top of card (35-40%) or colored accent bar */}
+          {hasImage ? (
+            <div className="relative w-full shrink-0" style={{ height: "38%" }}>
+              <img
+                src={news.imageUrl!}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={() => setImgFailed(true)}
+              />
+              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-900 to-transparent" />
+            </div>
+          ) : (
             <div
-              className="h-1.5 w-full"
+              className="h-1 w-full shrink-0"
               style={{
                 background: primaryTag
                   ? `linear-gradient(90deg, ${primaryTag.color}, ${primaryTag.color}80, transparent)`
-                  : "linear-gradient(90deg, #6366f1, #a855f7, transparent)",
+                  : "linear-gradient(90deg, #6366f1, #a855f7, #ec4899)",
               }}
             />
-            {/* Share button (no-image layout) */}
-            <button
-              onClick={handleShare}
-              className="absolute right-4 top-4 rounded-full bg-white/5 p-2 text-gray-500 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Share"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-            </button>
-          </div>
-        )}
+          )}
 
-        {/* ── Content section (fills remaining space) ── */}
-        <div className="flex min-h-0 flex-1 flex-col px-4 pt-4">
-          {/* Source + time row */}
-          <div className="mb-2 flex items-center gap-2">
-            <SourceBadge source={news.source} />
-            <span className="text-[10px] text-gray-600">{timeAgo}</span>
-            {!hasImage && (
-              <a
-                href={news.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto text-[10px] text-gray-600 transition-colors hover:text-gray-400"
+          {/* Content area */}
+          <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 pb-3">
+            {/* Source + time + share row */}
+            <div className="mb-2 flex items-center gap-2">
+              <SourceBadge source={news.source} />
+              <span className="text-[10px] text-gray-600">{timeAgo}</span>
+              <button
+                onClick={handleShare}
+                className="ml-auto rounded-lg p-1.5 text-gray-500 transition-all hover:bg-white/10 hover:text-white"
+                aria-label="Share"
               >
-                Source
-              </a>
-            )}
-          </div>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </button>
+            </div>
 
-          {/* Title */}
-          <h2 className="mb-3 line-clamp-3 text-xl font-bold leading-snug text-white sm:text-2xl">
-            {news.title}
-          </h2>
+            {/* Title */}
+            <h2 className="mb-3 line-clamp-3 text-lg font-bold leading-snug text-white sm:text-xl">
+              {news.title}
+            </h2>
 
-          {/* Summary — vertically centered in available space */}
-          <div className="relative flex min-h-0 flex-1 items-center">
-            <p
-              className={`line-clamp-6 text-[15px] leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base sm:leading-7 ${
-                translating ? "opacity-50" : "opacity-100"
-              }`}
-            >
-              {displaySummary}
-            </p>
-            {translating && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+            {/* Summary — vertically centered in remaining space */}
+            <div className="relative flex min-h-0 flex-1 items-center">
+              <p
+                className={`line-clamp-6 text-sm leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base sm:leading-7 ${
+                  translating ? "opacity-50" : "opacity-100"
+                }`}
+              >
+                {displaySummary}
+              </p>
+              {translating && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                </div>
+              )}
+            </div>
+
+            {/* Audio + Like/Dislike row */}
+            <div className="mb-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <AudioPlayer
+                  newsId={news.id}
+                  lang={lang}
+                  onLangChange={handleLangChange}
+                />
               </div>
-            )}
-          </div>
-
-          {/* Audio + Like/Dislike row */}
-          <div className="mb-3 flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <AudioPlayer
-                newsId={news.id}
-                lang={lang}
-                onLangChange={handleLangChange}
-              />
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                onClick={() => handleInteract("LIKE")}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
-                  likeAnim ? "animate-vote-pop" : ""
-                } ${
-                  voted === "like"
-                    ? "bg-emerald-500/15 text-emerald-400"
-                    : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
-                }`}
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill={voted === "like" ? "currentColor" : "none"}
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={voted === "like" ? 0 : 1.5}
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => handleInteract("LIKE")}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
+                    likeAnim ? "animate-vote-pop" : ""
+                  } ${
+                    voted === "like"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                  }`}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" />
+                  <svg
+                    className="h-4 w-4"
+                    fill={voted === "like" ? "currentColor" : "none"}
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={voted === "like" ? 0 : 1.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" />
+                  </svg>
+                  {likes > 0 && <span className="font-medium">{formatCount(likes)}</span>}
+                </button>
+                <button
+                  onClick={() => handleInteract("DISLIKE")}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
+                    dislikeAnim ? "animate-vote-pop" : ""
+                  } ${
+                    voted === "dislike"
+                      ? "bg-red-500/15 text-red-400"
+                      : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                  }`}
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill={voted === "dislike" ? "currentColor" : "none"}
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={voted === "dislike" ? 0 : 1.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z" />
+                  </svg>
+                  {dislikes > 0 && <span className="font-medium">{formatCount(dislikes)}</span>}
+                </button>
+              </div>
+            </div>
+
+            {/* Action buttons — pinned at bottom */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => router.push(`/news/${news.id}`)}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
+              >
+                <svg className="h-3.5 w-3.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
-                {likes > 0 && <span className="font-medium">{formatCount(likes)}</span>}
+                <span className="hidden min-[375px]:inline">Read Detail</span>
+                <span className="min-[375px]:hidden">Detail</span>
               </button>
               <button
-                onClick={() => handleInteract("DISLIKE")}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
-                  dislikeAnim ? "animate-vote-pop" : ""
-                } ${
-                  voted === "dislike"
-                    ? "bg-red-500/15 text-red-400"
-                    : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
-                }`}
+                onClick={() => router.push(`/news/${news.id}/future`)}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
               >
-                <svg
-                  className="h-4 w-4"
-                  fill={voted === "dislike" ? "currentColor" : "none"}
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={voted === "dislike" ? 0 : 1.5}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z" />
+                <svg className="h-3.5 w-3.5 shrink-0 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
-                {dislikes > 0 && <span className="font-medium">{formatCount(dislikes)}</span>}
+                <span className="hidden min-[375px]:inline">Future Impact</span>
+                <span className="min-[375px]:hidden">Future</span>
+              </button>
+              <button
+                onClick={() => router.push(`/news/${news.id}/build`)}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
+              >
+                <svg className="h-3.5 w-3.5 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.384-3.19A.6.6 0 016 11.5V7.5a.6.6 0 01.036-.48l5.384-3.19a.6.6 0 01.58 0l5.384 3.19A.6.6 0 0118 7.5v4a.6.6 0 01-.036.48l-5.384 3.19a.6.6 0 01-.58 0zM3.27 6.96L12 12.01m0 0l8.73-5.05M12 12.01V21.5" />
+                </svg>
+                <span className="hidden min-[375px]:inline">Build on This</span>
+                <span className="min-[375px]:hidden">Build</span>
               </button>
             </div>
-          </div>
-
-          {/* Action buttons — pinned at bottom */}
-          <div className="grid grid-cols-3 gap-2 pb-4">
-            <button
-              onClick={() => router.push(`/news/${news.id}`)}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
-            >
-              <svg className="h-3.5 w-3.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              <span className="hidden min-[375px]:inline">Read Detail</span>
-              <span className="min-[375px]:hidden">Detail</span>
-            </button>
-            <button
-              onClick={() => router.push(`/news/${news.id}/future`)}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
-            >
-              <svg className="h-3.5 w-3.5 shrink-0 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-              <span className="hidden min-[375px]:inline">Future Impact</span>
-              <span className="min-[375px]:hidden">Future</span>
-            </button>
-            <button
-              onClick={() => router.push(`/news/${news.id}/build`)}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
-            >
-              <svg className="h-3.5 w-3.5 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.384-3.19A.6.6 0 016 11.5V7.5a.6.6 0 01.036-.48l5.384-3.19a.6.6 0 01.58 0l5.384 3.19A.6.6 0 0118 7.5v4a.6.6 0 01-.036.48l-5.384 3.19a.6.6 0 01-.58 0zM3.27 6.96L12 12.01m0 0l8.73-5.05M12 12.01V21.5" />
-              </svg>
-              <span className="hidden min-[375px]:inline">Build on This</span>
-              <span className="min-[375px]:hidden">Build</span>
-            </button>
           </div>
         </div>
       </div>

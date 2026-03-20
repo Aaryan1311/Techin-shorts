@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 
 const VALID_TAGS = [
   "ai-ml",
@@ -27,13 +27,12 @@ export async function summarizeArticle(
   title: string,
   content: string
 ): Promise<SummarizedArticle> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
+    throw new Error("GROQ_API_KEY not configured");
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const groq = new Groq({ apiKey });
 
   const prompt = `You are a tech news summarizer for a developer-focused app called "Techie Shorts". Given the article title and content below, generate JSON with these fields:
 
@@ -52,19 +51,27 @@ Respond ONLY with valid JSON, no markdown code fences:`;
 
   let text: string;
   try {
-    const result = await model.generateContent(prompt);
-    text = result.response.text();
+    const result = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
+    });
+    text = result.choices[0]?.message?.content || "";
   } catch (err: unknown) {
     const is429 =
       err instanceof Error &&
-      (err.message.includes("429") || err.message.includes("Resource has been exhausted"));
+      (err.message.includes("429") || err.message.includes("rate_limit"));
     if (!is429) throw err;
 
     console.warn(`Rate limited on "${title}", waiting 60s before retry...`);
     await new Promise((r) => setTimeout(r, 60_000));
 
-    const retry = await model.generateContent(prompt);
-    text = retry.response.text();
+    const retry = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
+    });
+    text = retry.choices[0]?.message?.content || "";
   }
 
   // Parse JSON — strip any accidental code fences

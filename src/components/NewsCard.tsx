@@ -155,11 +155,12 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
           text: `${news.title} — Techie Shorts`,
           url: shareUrl,
         });
-        return;
       } catch {
-        // User cancelled or API failed — fall through to popup
+        // User cancelled — do nothing
       }
+      return; // Always return when native share is available — never show custom popup
     }
+
     setShowShare(true);
   };
 
@@ -172,15 +173,24 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
     <>
       <div className="flex h-full w-full items-center justify-center px-4 py-4">
         <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
+          {/* Background image overlay */}
+          {news.imageUrl && (
+            <div
+              className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.15]"
+              style={{ backgroundImage: `url(${news.imageUrl})` }}
+              onError={() => {}}
+            />
+          )}
+          {news.imageUrl && (
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-gray-900/80 via-gray-900/60 to-gray-900/90" />
+          )}
+
           {/* Top gradient accent */}
           <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
-          <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
-            {/* Top row: counter, source, time, share */}
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-[11px] font-medium text-gray-500">
-                {index + 1}/{total}
-              </span>
+          <div className="relative flex flex-1 flex-col px-5 pt-4 pb-5">
+            {/* Top row: source, time, share */}
+            <div className="mb-2 flex items-center gap-2">
               <SourceBadge source={news.source} />
               <span className="ml-auto text-[11px] text-gray-500">{timeAgo}</span>
               <button
@@ -195,7 +205,7 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
             </div>
 
             {/* Tags — compact */}
-            <div className="mb-3 flex flex-wrap gap-1.5">
+            <div className="mb-2 flex flex-wrap gap-1.5">
               {news.tags.map((tag) => (
                 <span
                   key={tag.id}
@@ -211,26 +221,13 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
               ))}
             </div>
 
-            {/* Title + thumbnail */}
-            <div className="mb-3 flex gap-3">
-              <h2 className="flex-1 text-lg font-bold leading-snug text-white sm:text-xl">
-                {news.title}
-              </h2>
-              {news.imageUrl && (
-                <img
-                  src={news.imageUrl}
-                  alt=""
-                  className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
-                  loading="lazy"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              )}
-            </div>
+            {/* Title */}
+            <h2 className="mb-2 text-lg font-bold leading-snug text-white sm:text-xl">
+              {news.title}
+            </h2>
 
             {/* Summary — centered in remaining space */}
-            <div className="relative mb-3 flex flex-1 items-center">
+            <div className="relative flex flex-1 items-center">
               <p
                 className={`text-sm leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base ${
                   translating ? "opacity-50" : "opacity-100"

@@ -13,6 +13,7 @@ const VALID_TAGS = [
   "databases",
   "open-source",
   "career-jobs",
+  "trending",
 ];
 
 interface SummarizedArticle {
@@ -21,6 +22,7 @@ interface SummarizedArticle {
   futureImpact: string;
   buildOnThis: string;
   tags: string[]; // tag slugs
+  isNews: boolean;
 }
 
 function ensureString(value: unknown): string {
@@ -34,7 +36,7 @@ function ensureString(value: unknown): string {
           const diff = item.difficulty || item.level || "";
           const desc = item.description || "";
           const bracket = diff ? ` [${diff}]` : "";
-          return `${i + 1}. **${name}**${bracket} - ${desc}`;
+          return `${i + 1}. **${name}**${bracket} — ${desc}`;
         }
         return `${i + 1}. ${String(item)}`;
       })
@@ -57,13 +59,18 @@ export async function summarizeArticle(
 
   const groq = new Groq({ apiKey });
 
-  const prompt = `You are a tech news summarizer for a developer-focused app called "Techie Shorts". Given the article title and content below, generate JSON with these fields:
+  const prompt = `You are summarizing NEWS for developers. You work for "Techie Shorts", a developer news app that only shows REAL NEWS — product launches, major updates, security vulnerabilities, funding rounds, acquisitions, new releases, breaking changes, and significant announcements.
 
-1. "summary" — A concise 60-80 word summary for the card view. Focus on what happened, why it matters for developers, and key numbers/stats.
-2. "detailContent" — A 200-300 word detailed explanation with context, technical details, and implications. Use markdown formatting.
-3. "futureImpact" — A 150-200 word analysis of how this could affect the tech industry, developer workflows, or the broader ecosystem in the next 1-3 years. Use markdown formatting.
-4. "buildOnThis" — 3-4 concrete project ideas (with difficulty level) that developers could build inspired by this news. Format as a numbered markdown list with project name in bold, difficulty in brackets, and a 1-2 sentence description.
-5. "tags" — An array of 1-3 relevant tag slugs from this list: ${VALID_TAGS.join(", ")}
+IMPORTANT: If the article is a tutorial, opinion piece, how-to guide, listicle, or blog post that is NOT actual news, return ONLY: { "isNews": false } and nothing else. We only want real news.
+
+If this IS real news, generate JSON with these fields:
+
+1. "isNews" — true
+2. "summary" — A concise 60-80 word summary for the card view. Focus on what happened, why it matters for developers, and key numbers/stats.
+3. "detailContent" — A 200-300 word detailed explanation with context, technical details, and implications. Use markdown formatting.
+4. "futureImpact" — A 150-200 word analysis of how this could affect the tech industry, developer workflows, or the broader ecosystem in the next 1-3 years. Use markdown formatting.
+5. "buildOnThis" — 3-4 concrete project ideas that developers could build inspired by this news. For each idea, format as: **Project Name** [Difficulty] — Description (1-2 sentences). Difficulty is one of: Easy, Medium, Hard. Format as a numbered markdown list.
+6. "tags" — An array of 1-2 relevant tag slugs from this list: ${VALID_TAGS.join(", ")}. Pick only the MOST relevant 1-2 tags, not 3. Be precise — a Python library release gets "python", not "python" + "backend" + "open-source". If this news has widespread impact across multiple areas of tech (not just one niche), also add the "trending" tag.
 
 Article title: ${title}
 
@@ -98,7 +105,7 @@ Respond ONLY with valid JSON, no markdown code fences:`;
   }
 
   // Parse JSON — strip markdown code fences, trim whitespace
-  let cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
   let parsed: Record<string, unknown>;
   try {
@@ -118,6 +125,18 @@ Respond ONLY with valid JSON, no markdown code fences:`;
     }
   }
 
+  // Check if AI says this is not news
+  if (parsed.isNews === false) {
+    return {
+      summary: "",
+      detailContent: "",
+      futureImpact: "",
+      buildOnThis: "",
+      tags: [],
+      isNews: false,
+    };
+  }
+
   // Validate tags
   const validatedTags = (
     Array.isArray(parsed.tags) ? parsed.tags : []
@@ -129,5 +148,6 @@ Respond ONLY with valid JSON, no markdown code fences:`;
     futureImpact: ensureString(parsed.futureImpact),
     buildOnThis: ensureString(parsed.buildOnThis),
     tags: validatedTags.length > 0 ? validatedTags : ["backend"],
+    isNews: true,
   };
 }

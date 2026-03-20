@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 
 interface NewsDetail {
   id: string;
@@ -11,6 +12,78 @@ interface NewsDetail {
   imageUrl: string | null;
   tags: { id: string; name: string; slug: string; color: string }[];
   publishedAt: string;
+}
+
+interface ProjectIdea {
+  name: string;
+  difficulty: string;
+  description: string;
+}
+
+function parseBuildIdeas(raw: string): ProjectIdea[] {
+  const ideas: ProjectIdea[] = [];
+
+  // Try parsing numbered items like: 1. **Name** [Difficulty] — Description
+  const lines = raw.split("\n").filter((l) => l.trim());
+
+  for (const line of lines) {
+    const cleaned = line.replace(/^\d+[\.\)]\s*/, "").trim();
+
+    // Match: **Name** [Difficulty] — Description  OR  **Name** [Difficulty] - Description
+    const match = cleaned.match(
+      /\*{0,2}([^*[\]]+?)\*{0,2}\s*\[(\w+)\]\s*[—\-–]\s*(.+)/
+    );
+    if (match) {
+      ideas.push({
+        name: match[1].trim(),
+        difficulty: match[2].trim(),
+        description: match[3].trim(),
+      });
+      continue;
+    }
+
+    // Fallback: **Name** — Description (no difficulty)
+    const fallback = cleaned.match(
+      /\*{0,2}([^*]+?)\*{0,2}\s*[—\-–]\s*(.+)/
+    );
+    if (fallback) {
+      ideas.push({
+        name: fallback[1].trim(),
+        difficulty: "Medium",
+        description: fallback[2].trim(),
+      });
+      continue;
+    }
+
+    // Last resort: just use the line as description
+    if (cleaned.length > 10) {
+      ideas.push({
+        name: `Project ${ideas.length + 1}`,
+        difficulty: "Medium",
+        description: cleaned.replace(/\*\*/g, ""),
+      });
+    }
+  }
+
+  return ideas;
+}
+
+function DifficultyBadge({ level }: { level: string }) {
+  const normalized = level.toLowerCase();
+  const config =
+    normalized === "easy"
+      ? { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30" }
+      : normalized === "hard"
+        ? { bg: "bg-red-500/15", text: "text-red-400", border: "border-red-500/30" }
+        : { bg: "bg-amber-500/15", text: "text-amber-400", border: "border-amber-500/30" };
+
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${config.bg} ${config.text} ${config.border}`}
+    >
+      {level}
+    </span>
+  );
 }
 
 export default function BuildOnThisPage() {
@@ -44,18 +117,18 @@ export default function BuildOnThisPage() {
     );
   }
 
-  const defaultIdeas = [
-    "Build a CLI tool that leverages this technology to automate developer workflows",
-    "Create a web dashboard that visualizes the key metrics and data from this update",
-    "Develop a browser extension that integrates this feature into your daily browsing",
-    "Write an open-source library that wraps this functionality for easier adoption",
-    "Build a tutorial platform that teaches developers how to use this technology hands-on",
+  const defaultIdeas: ProjectIdea[] = [
+    { name: "CLI Automation Tool", difficulty: "Easy", description: "Build a CLI tool that leverages this technology to automate developer workflows and repetitive tasks." },
+    { name: "Real-time Dashboard", difficulty: "Medium", description: "Create a web dashboard that visualizes the key metrics and data from this update with live charts." },
+    { name: "Browser Extension", difficulty: "Medium", description: "Develop a browser extension that integrates this feature into your daily browsing experience." },
+    { name: "Open Source Library", difficulty: "Hard", description: "Write an open-source library that wraps this functionality for easier adoption across different frameworks." },
   ];
 
-  const hasContent = !!news.buildOnThis;
-  const contentLines = hasContent
-    ? news.buildOnThis!.split("\n").filter((l) => l.trim())
+  const ideas = news.buildOnThis
+    ? parseBuildIdeas(news.buildOnThis)
     : [];
+  const displayIdeas = ideas.length > 0 ? ideas : defaultIdeas;
+  const hasContent = ideas.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-950 px-4 py-8">
@@ -131,37 +204,41 @@ export default function BuildOnThisPage() {
         {/* Emerald accent bar */}
         <div className="mb-8 h-1 w-16 rounded-full bg-emerald-500" />
 
-        {/* Project ideas as cards */}
+        {/* Inspiring header */}
+        <p className="mb-6 text-base text-gray-400">
+          Inspired by this news? Here are project ideas you can start building today.
+        </p>
+
+        {/* Project ideas as styled cards */}
         <div className="mb-10 space-y-4">
-          {hasContent
-            ? contentLines.map((line, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5"
+          {displayIdeas.map((idea, i) => (
+            <div
+              key={i}
+              className="group rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent p-5 transition-all hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-sm font-bold text-emerald-400">
+                  {i + 1}
+                </span>
+                <h3 className="flex-1 text-base font-bold text-white">
+                  {idea.name}
+                </h3>
+                <DifficultyBadge level={idea.difficulty} />
+              </div>
+              <p className="pl-11 text-sm leading-relaxed text-gray-300">
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <>{children}</>,
+                    strong: ({ children }) => (
+                      <strong className="font-semibold text-white">{children}</strong>
+                    ),
+                  }}
                 >
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-bold text-emerald-400">
-                      {i + 1}
-                    </span>
-                    <p className="text-sm leading-relaxed text-gray-300">
-                      {line.replace(/^\d+[\.\)]\s*/, "")}
-                    </p>
-                  </div>
-                </div>
-              ))
-            : defaultIdeas.map((idea, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5"
-                >
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-bold text-emerald-400">
-                      {i + 1}
-                    </span>
-                    <p className="text-sm leading-relaxed text-gray-300">{idea}</p>
-                  </div>
-                </div>
-              ))}
+                  {idea.description}
+                </ReactMarkdown>
+              </p>
+            </div>
+          ))}
         </div>
 
         {!hasContent && (

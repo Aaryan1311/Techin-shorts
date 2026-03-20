@@ -18,6 +18,11 @@ export default function TagFilterBar({
   activeTag,
   onTagSelect,
 }: TagFilterBarProps) {
+  // Put "trending" first in the tag list (after the All button)
+  const trendingTag = tags.find((t) => t.slug === "trending");
+  const otherTags = tags.filter((t) => t.slug !== "trending");
+  const sortedTags = trendingTag ? [trendingTag, ...otherTags] : otherTags;
+
   return (
     <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-hide">
       <button
@@ -30,14 +35,16 @@ export default function TagFilterBar({
       >
         All
       </button>
-      {tags.map((tag) => (
+      {sortedTags.map((tag) => (
         <button
           key={tag.id}
           onClick={() => onTagSelect(tag.slug)}
           className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
             activeTag === tag.slug
               ? "text-white shadow-lg"
-              : "bg-white/10 text-gray-300 hover:bg-white/15"
+              : tag.slug === "trending"
+                ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+                : "bg-white/10 text-gray-300 hover:bg-white/15"
           }`}
           style={
             activeTag === tag.slug
@@ -48,7 +55,7 @@ export default function TagFilterBar({
               : undefined
           }
         >
-          {tag.name}
+          {tag.slug === "trending" ? `🔥 ${tag.name}` : tag.name}
         </button>
       ))}
     </div>

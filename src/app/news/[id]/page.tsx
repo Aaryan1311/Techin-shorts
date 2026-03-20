@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 
 interface Tag {
   id: string;
@@ -120,10 +121,8 @@ export default function ReadDetailPage() {
         <div className="mb-8 h-1 w-16 rounded-full bg-indigo-500" />
 
         {/* Content */}
-        <article className="prose-invert mb-10 space-y-4 text-base leading-relaxed text-gray-300">
-          {content.split("\n").map((paragraph, i) =>
-            paragraph.trim() ? <p key={i}>{paragraph}</p> : null
-          )}
+        <article className="prose prose-invert mb-10 max-w-none text-base leading-relaxed text-gray-300 prose-headings:text-white prose-strong:text-white prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline">
+          <ReactMarkdown>{content}</ReactMarkdown>
         </article>
 
         {/* Source link */}

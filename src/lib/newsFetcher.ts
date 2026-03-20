@@ -40,19 +40,19 @@ const parser = new Parser<Record<string, unknown>, CustomItem>({
 });
 
 const RSS_FEEDS = [
-  { name: "Hacker News", source: "hackernews", url: "https://hnrss.org/newest?points=50&count=10" },
-  { name: "Dev.to", source: "devto", url: "https://dev.to/feed" },
+  { name: "Hacker News", source: "hackernews", url: "https://hnrss.org/newest?points=200&count=10" },
   { name: "TechCrunch", source: "techcrunch", url: "https://techcrunch.com/feed/" },
   { name: "The Verge", source: "theverge", url: "https://www.theverge.com/rss/index.xml" },
   { name: "GitHub Blog", source: "github", url: "https://github.blog/feed/" },
+  { name: "InfoQ", source: "infoq", url: "https://www.infoq.com/feed/" },
+  { name: "SD Times", source: "sdtimes", url: "https://sdtimes.com/feed/" },
+  { name: "BleepingComputer", source: "bleepingcomputer", url: "https://www.bleepingcomputer.com/feed/" },
+  { name: "Product Hunt", source: "producthunt", url: "https://www.producthunt.com/feed" },
 ];
 
 const REDDIT_FEEDS = [
   { subreddit: "programming", url: "https://www.reddit.com/r/programming/top.json?t=day&limit=10" },
   { subreddit: "webdev", url: "https://www.reddit.com/r/webdev/top.json?t=day&limit=10" },
-  { subreddit: "javascript", url: "https://www.reddit.com/r/javascript/top.json?t=day&limit=10" },
-  { subreddit: "python", url: "https://www.reddit.com/r/python/top.json?t=day&limit=10" },
-  { subreddit: "devops", url: "https://www.reddit.com/r/devops/top.json?t=day&limit=10" },
   { subreddit: "machinelearning", url: "https://www.reddit.com/r/machinelearning/top.json?t=day&limit=10" },
   { subreddit: "developersIndia", url: "https://www.reddit.com/r/developersIndia/top.json?t=day&limit=10" },
   { subreddit: "AI_India", url: "https://www.reddit.com/r/AI_India/top.json?t=day&limit=10" },
@@ -64,6 +64,7 @@ interface RedditPost {
     permalink: string;
     url: string;
     selftext: string;
+    is_self: boolean;
     ups: number;
     created_utc: number;
     thumbnail: string;
@@ -144,10 +145,10 @@ async function fetchRedditFeeds(): Promise<FeedItem[]> {
 
         const json: RedditResponse = await res.json();
         return json.data.children
-          .filter((post) => post.data.ups >= 100)
+          .filter((post) => post.data.ups >= 500 && !post.data.is_self)
           .map((post) => ({
             title: post.data.title,
-            link: `https://www.reddit.com${post.data.permalink}`,
+            link: post.data.url || `https://www.reddit.com${post.data.permalink}`,
             contentSnippet: post.data.selftext?.slice(0, 500) || post.data.url || "",
             content: post.data.selftext || post.data.url || "",
             pubDate: new Date(post.data.created_utc * 1000).toISOString(),

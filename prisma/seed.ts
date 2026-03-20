@@ -19,6 +19,7 @@ async function main() {
     { name: "Databases", slug: "databases", color: "#a855f7" },
     { name: "Open Source", slug: "open-source", color: "#10b981" },
     { name: "Career & Jobs", slug: "career-jobs", color: "#f59e0b" },
+    { name: "Trending", slug: "trending", color: "#ef4444" },
   ];
 
   const tags: Record<string, { id: string }> = {};

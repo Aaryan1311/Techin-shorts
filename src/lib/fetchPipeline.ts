@@ -54,6 +54,11 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
         continue;
       }
 
+      if (!summarized.isNews) {
+        results.push({ title: item.title, status: "skipped: not news (tutorial/opinion)" });
+        continue;
+      }
+
       // Ensure tags exist in DB
       const tagConnections = [];
       for (const slug of summarized.tags) {

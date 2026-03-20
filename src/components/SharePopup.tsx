@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { trackEvent } from "@/lib/tracker";
 
 interface SharePopupProps {
   newsId: string;
@@ -37,6 +38,7 @@ export default function SharePopup({ newsId, title, summary, onClose }: SharePop
   }, [onClose]);
 
   const handleCopy = async () => {
+    trackEvent(newsId, "SHARE");
     try {
       await navigator.clipboard.writeText(shareUrl);
     } catch {
@@ -175,7 +177,7 @@ export default function SharePopup({ newsId, title, summary, onClose }: SharePop
                 target={opt.href.startsWith("mailto:") ? "_self" : "_blank"}
                 rel="noopener noreferrer"
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all hover:bg-white/10 ${opt.color}`}
-                onClick={onClose}
+                onClick={() => { trackEvent(newsId, "SHARE"); onClose(); }}
               >
                 {opt.icon}
                 {opt.label}

@@ -26,6 +26,7 @@ export interface NewsItem {
   audioUrlEn?: string | null;
   audioUrlHi?: string | null;
   audioUrlHinglish?: string | null;
+  isTrending?: boolean;
 }
 
 export async function fetchTags(): Promise<Tag[]> {

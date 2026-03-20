@@ -189,6 +189,11 @@ export interface ScoredNewsItem {
   userInteraction: string | null;
   isTrending: boolean;
   tags: { id: string; name: string; slug: string; color: string }[];
+  summaryHi: string | null;
+  summaryHinglish: string | null;
+  audioUrlEn: string | null;
+  audioUrlHi: string | null;
+  audioUrlHinglish: string | null;
 }
 
 export async function getPersonalizedFeed(
@@ -311,5 +316,10 @@ export async function getPersonalizedFeed(
       slug: nt.tag.slug,
       color: nt.tag.color,
     })),
+    summaryHi: item.summaryHi || null,
+    summaryHinglish: item.summaryHinglish || null,
+    audioUrlEn: item.audioUrlEn || null,
+    audioUrlHi: item.audioUrlHi || null,
+    audioUrlHinglish: item.audioUrlHinglish || null,
   }));
 }

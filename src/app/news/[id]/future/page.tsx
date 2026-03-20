@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import { trackEvent } from "@/lib/tracker";
 
 interface NewsDetail {
   id: string;
@@ -20,6 +21,8 @@ export default function FutureImpactPage() {
   const [news, setNews] = useState<NewsDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const enteredAt = useRef(Date.now());
+
   useEffect(() => {
     fetch(`/api/news/${params.id}`)
       .then((r) => r.json())
@@ -27,6 +30,16 @@ export default function FutureImpactPage() {
         setNews(data);
         setLoading(false);
       });
+  }, [params.id]);
+
+  useEffect(() => {
+    enteredAt.current = Date.now();
+    return () => {
+      const duration = Math.round((Date.now() - enteredAt.current) / 1000);
+      if (params.id && duration > 2) {
+        trackEvent(params.id as string, "READ_DETAIL", duration);
+      }
+    };
   }, [params.id]);
 
   if (loading) {

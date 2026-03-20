@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AudioPlayer, { type Lang } from "./AudioPlayer";
 import SharePopup from "./SharePopup";
 import SourceBadge from "./SourceBadge";
 import { interactWithNews, translateNews, saveLanguagePreference } from "@/lib/api";
+import { trackEvent } from "@/lib/tracker";
 
 interface Tag {
   id: string;
@@ -33,6 +34,7 @@ export interface NewsItem {
   audioUrlEn?: string | null;
   audioUrlHi?: string | null;
   audioUrlHinglish?: string | null;
+  isTrending?: boolean;
 }
 
 interface NewsCardProps {
@@ -67,6 +69,42 @@ export default function NewsCard({ news }: NewsCardProps) {
   const [lang, setLang] = useState<Lang>("EN");
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const readTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track VIEW when card is visible for > 0.5s via IntersectionObserver
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            trackEvent(news.id, "VIEW");
+            // Start 5s timer for READ_SUMMARY
+            readTimerRef.current = setTimeout(() => {
+              trackEvent(news.id, "READ_SUMMARY");
+            }, 5000);
+          } else {
+            // Clear timer if scrolled away
+            if (readTimerRef.current) {
+              clearTimeout(readTimerRef.current);
+              readTimerRef.current = null;
+            }
+          }
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (readTimerRef.current) clearTimeout(readTimerRef.current);
+    };
+  }, [news.id]);
 
   // Get cached translation from the news object if available
   const getCachedTranslation = useCallback((targetLang: Lang): string | null => {
@@ -184,7 +222,7 @@ export default function NewsCard({ news }: NewsCardProps) {
 
   return (
     <>
-      <div className="flex h-full w-full items-center justify-center px-4 py-4">
+      <div ref={cardRef} className="flex h-full w-full items-center justify-center px-4 py-4">
         <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
 
           {/* Image at top of card (35-40%) or colored accent bar */}
@@ -214,6 +252,12 @@ export default function NewsCard({ news }: NewsCardProps) {
             {/* Source + time + share row */}
             <div className="mb-2 flex items-center gap-2">
               <SourceBadge source={news.source} />
+              {news.isTrending && (
+                <span className="flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23a7.5 7.5 0 01-5.138-12.963C8.204 8.774 11.5 6.5 11 1.5c6 4 9 8 3 14 1 0 2.5 0 5-2.47.27.773.5 1.604.5 2.47A7.5 7.5 0 0112 23z"/></svg>
+                  Trending
+                </span>
+              )}
               <span className="text-[10px] text-gray-600">{timeAgo}</span>
               <button
                 onClick={handleShare}
@@ -310,7 +354,7 @@ export default function NewsCard({ news }: NewsCardProps) {
             {/* Action buttons — pinned at bottom */}
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => router.push(`/news/${news.id}`)}
+                onClick={() => { trackEvent(news.id, "CLICK_DETAIL"); router.push(`/news/${news.id}`); }}
                 className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -320,7 +364,7 @@ export default function NewsCard({ news }: NewsCardProps) {
                 <span className="min-[375px]:hidden">Detail</span>
               </button>
               <button
-                onClick={() => router.push(`/news/${news.id}/future`)}
+                onClick={() => { trackEvent(news.id, "CLICK_FUTURE"); router.push(`/news/${news.id}/future`); }}
                 className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -330,7 +374,7 @@ export default function NewsCard({ news }: NewsCardProps) {
                 <span className="min-[375px]:hidden">Future</span>
               </button>
               <button
-                onClick={() => router.push(`/news/${news.id}/build`)}
+                onClick={() => { trackEvent(news.id, "CLICK_BUILD"); router.push(`/news/${news.id}/build`); }}
                 className="flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

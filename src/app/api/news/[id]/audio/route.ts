@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { coalesce } from "@/lib/requestCoalescer";
 
 const ELEVENLABS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
 const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel — works for EN, HI, Hinglish
 
-const AUDIO_FIELD_MAP = {
+const AUDIO_URL_FIELD = {
   EN: "audioUrlEn",
   HI: "audioUrlHi",
   HINGLISH: "audioUrlHinglish",
 } as const;
 
-type ValidLang = keyof typeof AUDIO_FIELD_MAP;
+const AUDIO_DATA_FIELD = {
+  EN: "audioDataEn",
+  HI: "audioDataHi",
+  HINGLISH: "audioDataHinglish",
+} as const;
+
+type ValidLang = keyof typeof AUDIO_URL_FIELD;
 
 export async function POST(
   request: NextRequest,
@@ -41,7 +45,7 @@ export async function POST(
   }
 
   try {
-    const audioUrl = await coalesce(`audio-${newsId}-${lang}`, async () => {
+    const result = await coalesce(`audio-${newsId}-${lang}`, async () => {
       // Check DB cache first
       const news = await prisma.news.findUnique({
         where: { id: newsId },
@@ -53,15 +57,20 @@ export async function POST(
           audioUrlEn: true,
           audioUrlHi: true,
           audioUrlHinglish: true,
+          audioDataEn: true,
+          audioDataHi: true,
+          audioDataHinglish: true,
         },
       });
 
       if (!news) throw new Error("NOT_FOUND");
 
-      // Return cached audio URL if available
-      const audioField = AUDIO_FIELD_MAP[lang];
-      const cachedUrl = news[audioField];
-      if (cachedUrl) return cachedUrl;
+      // Return cached if available
+      const urlField = AUDIO_URL_FIELD[lang];
+      const dataField = AUDIO_DATA_FIELD[lang];
+      if (news[urlField] === "db:cached" && news[dataField]) {
+        return { cached: true, base64: news[dataField] as string };
+      }
 
       // Determine text to speak
       let textToSpeak: string;
@@ -98,27 +107,30 @@ export async function POST(
         throw new Error("AUDIO_GENERATION_FAILED");
       }
 
-      // Save MP3 to public/audio/
-      const audioDir = path.join(process.cwd(), "public", "audio");
-      await mkdir(audioDir, { recursive: true });
-
-      const filename = `${news.id}-${lang.toLowerCase()}.mp3`;
-      const filepath = path.join(audioDir, filename);
       const buffer = Buffer.from(await ttsResponse.arrayBuffer());
-      await writeFile(filepath, buffer);
+      const base64 = buffer.toString("base64");
 
-      const url = `/audio/${filename}`;
-
-      // Cache URL in database
+      // Save base64 in DB, set URL to "db:cached"
       await prisma.news.update({
         where: { id: newsId },
-        data: { [audioField]: url },
+        data: {
+          [urlField]: "db:cached",
+          [dataField]: base64,
+        },
       });
 
-      return url;
+      return { cached: false, base64 };
     });
 
-    return NextResponse.json({ audioUrl });
+    // Return the audio as binary MP3
+    const mp3Buffer = Buffer.from(result.base64, "base64");
+    return new NextResponse(mp3Buffer, {
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Content-Length": String(mp3Buffer.length),
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "NOT_FOUND") {

@@ -65,6 +65,11 @@ model News {
   audioUrlHi      String?
   audioUrlHinglish String?
 
+  // Audio data stored as base64 (for serverless deployments with read-only fs)
+  audioDataEn       String? @db.Text
+  audioDataHi       String? @db.Text
+  audioDataHinglish String? @db.Text
+
   // Engagement metrics (denormalized for fast reads)
   likeCount    Int @default(0)
   dislikeCount Int @default(0)
@@ -196,4 +201,18 @@ enum BehaviorType {
   CLICK_BUILD
   READ_DETAIL
   SHARE
+}
+
+// Temporary storage for RSS items awaiting AI processing (one-at-a-time pipeline)
+model PendingArticle {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  sourceUrl   String   @unique
+  source      String
+  imageUrl    String?
+  pubDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("pending_articles")
 }

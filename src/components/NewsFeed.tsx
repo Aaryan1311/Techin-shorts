@@ -6,7 +6,7 @@ import Link from "next/link";
 import NewsCard from "./NewsCard";
 import type { NewsItem } from "./NewsCard";
 import CardSkeleton from "./CardSkeleton";
-import { fetchNews, fetchAdminNews } from "@/lib/api";
+import { fetchNews, fetchAdminNewsSingle } from "@/lib/api";
 
 type SearchSort = "relevant" | "recent" | "trending";
 
@@ -38,21 +38,50 @@ export default function NewsFeed() {
   const isLoggedIn = status === "authenticated" && !!session?.user;
   const isAdmin = isLoggedIn && (session?.user as { isAdmin?: boolean })?.isAdmin;
 
+  const [fetchProgress, setFetchProgress] = useState<string | null>(null);
+
   const handleFetchNews = async () => {
     setFetching(true);
     setFetchMsg(null);
+    setFetchProgress(null);
     try {
       const secret = prompt("Enter admin secret:");
       if (!secret) {
         setFetching(false);
         return;
       }
-      const data = await fetchAdminNews(secret);
-      setFetchMsg(data.ok ? `Fetched ${data.processed} new articles` : (data.error || "Failed"));
+
+      let totalAdded = 0;
+      const maxArticles = 10;
+
+      for (let i = 0; i < maxArticles + 15; i++) {
+        // +15 to account for filtered articles
+        setFetchProgress(`Fetching... (${totalAdded}/${maxArticles})`);
+        const data = await fetchAdminNewsSingle(secret);
+
+        if (!data.ok) {
+          setFetchMsg(data.error || "Failed");
+          break;
+        }
+
+        totalAdded += data.added;
+        setFetchProgress(`Fetching... (${totalAdded}/${maxArticles})`);
+
+        if (data.remaining === 0 || totalAdded >= maxArticles) {
+          setFetchMsg(`Fetched ${totalAdded} new article${totalAdded !== 1 ? "s" : ""}`);
+          break;
+        }
+      }
+
+      if (totalAdded > 0) {
+        // Refresh the feed
+        fetchNews({}).then(setNews);
+      }
     } catch {
       setFetchMsg("Network error");
     } finally {
       setFetching(false);
+      setFetchProgress(null);
       setTimeout(() => setFetchMsg(null), 5000);
     }
   };
@@ -304,7 +333,7 @@ export default function NewsFeed() {
                       disabled={fetching}
                       className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20 disabled:opacity-50"
                     >
-                      {fetching ? "Fetching..." : "Fetch News"}
+                      {fetching ? (fetchProgress || "Fetching...") : "Fetch News"}
                     </button>
                   )}
                   <button

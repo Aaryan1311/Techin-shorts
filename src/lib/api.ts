@@ -75,9 +75,11 @@ export async function translateNews(
   return res.json();
 }
 
-export async function fetchAdminNews(secret: string): Promise<{
+export async function fetchAdminNewsSingle(secret: string): Promise<{
   ok: boolean;
-  processed?: number;
+  added: number;
+  remaining: number;
+  status: string;
   error?: string;
 }> {
   const res = await fetch("/api/admin/fetch-news", {
@@ -86,8 +88,8 @@ export async function fetchAdminNews(secret: string): Promise<{
     body: JSON.stringify({ secret }),
   });
   const data = await res.json();
-  if (res.ok) return { ok: true, processed: data.processed };
-  return { ok: false, error: data.error || "Failed to fetch news" };
+  if (res.ok) return { ok: true, added: data.added ?? 0, remaining: data.remaining ?? 0, status: data.status || "" };
+  return { ok: false, added: 0, remaining: 0, status: "", error: data.error || "Failed to fetch news" };
 }
 
 export function saveLanguagePreference(lang: Lang): void {

@@ -18,6 +18,12 @@ const LANG_LABELS: Record<Lang, string> = {
   HINGLISH: "Hinglish",
 };
 
+const LANG_PATH: Record<Lang, string> = {
+  EN: "en",
+  HI: "hi",
+  HINGLISH: "hinglish",
+};
+
 export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrls }: AudioPlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
@@ -92,13 +98,12 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
         }
       }
 
-      // Step 2: Get audio — use cached URL if available
+      // Step 2: Check if audio is already cached
       const cachedUrl = cachedAudioUrls?.[lang] || null;
-      let audioUrl: string;
+      const audioSrc = `/api/news/${newsId}/audio/${LANG_PATH[lang]}`;
 
-      if (cachedUrl) {
-        audioUrl = cachedUrl;
-      } else {
+      if (!cachedUrl) {
+        // Generate audio via POST (stores base64 in DB)
         setLoadingStep("Generating audio...");
         const audioRes = await fetch(`/api/news/${newsId}/audio`, {
           method: "POST",
@@ -107,16 +112,20 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
         });
 
         if (!audioRes.ok) {
-          const data = await audioRes.json();
-          throw new Error(data.error || "Audio generation failed");
+          // Try to parse error
+          let errMsg = "Audio generation failed";
+          try {
+            const data = await audioRes.json();
+            errMsg = data.error || errMsg;
+          } catch {
+            // Response was binary but failed — use default message
+          }
+          throw new Error(errMsg);
         }
-
-        const audioData = await audioRes.json();
-        audioUrl = audioData.audioUrl;
       }
 
-      // Step 3: Play via global audio manager (stops any other playing audio)
-      const audio = globalAudio.play(audioUrl, stopCallback);
+      // Step 3: Play via GET endpoint (serves MP3 from DB)
+      const audio = globalAudio.play(audioSrc, stopCallback);
       audio.onended = () => setPlaying(false);
       audio.onerror = () => {
         setPlaying(false);

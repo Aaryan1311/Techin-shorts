@@ -33,7 +33,7 @@ export async function summarizeArticle(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const prompt = `You are a tech news summarizer for a developer-focused app called "Techie Shorts". Given the article title and content below, generate JSON with these fields:
 
@@ -60,8 +60,8 @@ Respond ONLY with valid JSON, no markdown code fences:`;
       (err.message.includes("429") || err.message.includes("Resource has been exhausted"));
     if (!is429) throw err;
 
-    console.warn(`Rate limited on "${title}", waiting 40s before retry...`);
-    await new Promise((r) => setTimeout(r, 40_000));
+    console.warn(`Rate limited on "${title}", waiting 60s before retry...`);
+    await new Promise((r) => setTimeout(r, 60_000));
 
     const retry = await model.generateContent(prompt);
     text = retry.response.text();

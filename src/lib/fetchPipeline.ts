@@ -39,10 +39,10 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
   for (let i = 0; i < toProcess.length; i++) {
     const item = toProcess[i];
 
-    // Wait 5 seconds between articles to avoid rate limits
+    // Wait 15 seconds between articles to avoid rate limits
     if (i > 0) {
-      console.log("Waiting 5s before next article...");
-      await new Promise((r) => setTimeout(r, 5_000));
+      console.log("Waiting 15s before next article...");
+      await new Promise((r) => setTimeout(r, 15_000));
     }
 
     try {

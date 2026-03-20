@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import translate from "google-translate-api-x";
 import Groq from "groq-sdk";
+import { coalesce } from "@/lib/requestCoalescer";
 
 /**
  * Translate English text to natural Hinglish using Groq LLM.
@@ -23,7 +24,8 @@ CRITICAL RULES:
 - Keep ALL numbers and percentages in English (60%, v2.0, 1000+, etc.)
 - ONLY convert the conversational connecting words to Hindi written in Roman/Latin script
 - It should sound natural — like a message in a developer WhatsApp group
-- Do NOT use Devanagari script at all — everything must be in Roman/Latin letters
+- Do NOT use Devanagari script — everything must be in Roman/Latin letters
+- Return ONLY the converted text, nothing else. No quotes, no explanation, no preamble.
 
 Example input: "GitHub Copilot's new agent mode can detect failing tests, trace the root cause, and submit a fix — all without developer intervention."
 Example output: "GitHub Copilot ka naya agent mode failing tests detect kar sakta hai, root cause trace kar sakta hai, aur fix submit kar sakta hai — sab kuch bina developer ke intervention ke."
@@ -77,48 +79,47 @@ export async function POST(
     );
   }
 
-  const news = await prisma.news.findUnique({
-    where: { id: params.id },
-    select: { summary: true, summaryHi: true, summaryHinglish: true },
-  });
-
-  if (!news) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  // Return cached translation if available
-  if (language === "HI" && news.summaryHi) {
-    return NextResponse.json({ text: news.summaryHi });
-  }
-  if (language === "HINGLISH" && news.summaryHinglish) {
-    return NextResponse.json({ text: news.summaryHinglish });
-  }
+  const newsId = params.id;
 
   try {
-    if (language === "HI") {
-      // Hindi (Devanagari) — use Google Translate as before
-      let hindiText = news.summaryHi;
-      if (!hindiText) {
+    const text = await coalesce(`translate-${newsId}-${language}`, async () => {
+      // Check DB cache first
+      const news = await prisma.news.findUnique({
+        where: { id: newsId },
+        select: { summary: true, summaryHi: true, summaryHinglish: true },
+      });
+
+      if (!news) throw new Error("NOT_FOUND");
+
+      // Return cached if available
+      if (language === "HI" && news.summaryHi) return news.summaryHi;
+      if (language === "HINGLISH" && news.summaryHinglish) return news.summaryHinglish;
+
+      // Generate translation
+      if (language === "HI") {
         const hiResult = await translate(news.summary, { to: "hi" });
-        hindiText = hiResult.text;
+        const hindiText = hiResult.text;
         await prisma.news.update({
-          where: { id: params.id },
+          where: { id: newsId },
           data: { summaryHi: hindiText },
         });
+        return hindiText;
       }
-      return NextResponse.json({ text: hindiText });
-    }
 
-    // HINGLISH — use Groq LLM to generate natural Hinglish directly from English
-    const hinglishText = await translateToHinglish(news.summary);
-
-    await prisma.news.update({
-      where: { id: params.id },
-      data: { summaryHinglish: hinglishText },
+      // HINGLISH — Groq LLM
+      const hinglishText = await translateToHinglish(news.summary);
+      await prisma.news.update({
+        where: { id: newsId },
+        data: { summaryHinglish: hinglishText },
+      });
+      return hinglishText;
     });
 
-    return NextResponse.json({ text: hinglishText });
+    return NextResponse.json({ text });
   } catch (err) {
+    if (err instanceof Error && err.message === "NOT_FOUND") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     console.error("Translation error:", err);
     return NextResponse.json(
       { error: "Translation service temporarily unavailable" },

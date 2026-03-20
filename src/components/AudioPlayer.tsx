@@ -8,6 +8,7 @@ interface AudioPlayerProps {
   newsId: string;
   lang: Lang;
   onLangChange: (lang: Lang) => void;
+  cachedAudioUrls?: { EN: string | null; HI: string | null; HINGLISH: string | null };
 }
 
 const LANG_LABELS: Record<Lang, string> = {
@@ -16,7 +17,7 @@ const LANG_LABELS: Record<Lang, string> = {
   HINGLISH: "Hinglish",
 };
 
-export default function AudioPlayer({ newsId, lang, onLangChange }: AudioPlayerProps) {
+export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrls }: AudioPlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,20 +75,27 @@ export default function AudioPlayer({ newsId, lang, onLangChange }: AudioPlayerP
         }
       }
 
-      // Step 2: Get audio
-      setLoadingStep("Generating audio...");
-      const audioRes = await fetch(`/api/news/${newsId}/audio`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: lang }),
-      });
+      // Step 2: Get audio — use cached URL if available
+      const cachedUrl = cachedAudioUrls?.[lang] || null;
+      let audioData: { audioUrl: string };
 
-      if (!audioRes.ok) {
-        const data = await audioRes.json();
-        throw new Error(data.error || "Audio generation failed");
+      if (cachedUrl) {
+        audioData = { audioUrl: cachedUrl };
+      } else {
+        setLoadingStep("Generating audio...");
+        const audioRes = await fetch(`/api/news/${newsId}/audio`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ language: lang }),
+        });
+
+        if (!audioRes.ok) {
+          const data = await audioRes.json();
+          throw new Error(data.error || "Audio generation failed");
+        }
+
+        audioData = await audioRes.json();
       }
-
-      const audioData = await audioRes.json();
 
       // Step 3: Play
       if (!audioRef.current) {

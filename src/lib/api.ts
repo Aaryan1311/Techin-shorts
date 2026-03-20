@@ -21,6 +21,11 @@ export interface NewsItem {
   createdAt: string;
   tags: Tag[];
   userInteraction?: string | null;
+  summaryHi?: string | null;
+  summaryHinglish?: string | null;
+  audioUrlEn?: string | null;
+  audioUrlHi?: string | null;
+  audioUrlHinglish?: string | null;
 }
 
 export async function fetchTags(): Promise<Tag[]> {

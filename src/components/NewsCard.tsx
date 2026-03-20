@@ -28,6 +28,11 @@ export interface NewsItem {
   createdAt: string;
   tags: Tag[];
   userInteraction?: string | null;
+  summaryHi?: string | null;
+  summaryHinglish?: string | null;
+  audioUrlEn?: string | null;
+  audioUrlHi?: string | null;
+  audioUrlHinglish?: string | null;
 }
 
 interface NewsCardProps {
@@ -63,19 +68,32 @@ export default function NewsCard({ news }: NewsCardProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
 
+  // Get cached translation from the news object if available
+  const getCachedTranslation = useCallback((targetLang: Lang): string | null => {
+    if (targetLang === "HI") return news.summaryHi || null;
+    if (targetLang === "HINGLISH") return news.summaryHinglish || null;
+    return null;
+  }, [news.summaryHi, news.summaryHinglish]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LS_KEY) as Lang | null;
       if (saved && (saved === "EN" || saved === "HI" || saved === "HINGLISH")) {
         setLang(saved);
         if (saved !== "EN") {
-          fetchTranslation(saved, news.id);
+          // Use cached translation if available, otherwise fetch
+          const cached = getCachedTranslation(saved);
+          if (cached) {
+            setTranslatedText(cached);
+          } else {
+            fetchTranslation(saved, news.id);
+          }
         }
       }
     } catch {
       // ignore
     }
-  }, [news.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [news.id, getCachedTranslation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setTranslatedText(null);
@@ -83,6 +101,12 @@ export default function NewsCard({ news }: NewsCardProps) {
   }, [news.id]);
 
   const fetchTranslation = async (targetLang: Lang, newsId: string) => {
+    // Check cached value first
+    const cached = getCachedTranslation(targetLang);
+    if (cached) {
+      setTranslatedText(cached);
+      return;
+    }
     setTranslating(true);
     try {
       const data = await translateNews(newsId, targetLang);
@@ -248,6 +272,11 @@ export default function NewsCard({ news }: NewsCardProps) {
                   newsId={news.id}
                   lang={lang}
                   onLangChange={handleLangChange}
+                  cachedAudioUrls={{
+                    EN: news.audioUrlEn || null,
+                    HI: news.audioUrlHi || null,
+                    HINGLISH: news.audioUrlHinglish || null,
+                  }}
                 />
               </div>
               <div className="flex shrink-0 items-center gap-1">

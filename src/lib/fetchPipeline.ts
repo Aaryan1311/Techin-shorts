@@ -5,6 +5,35 @@ import {
   type ClassificationResult,
 } from "@/lib/aiCurator";
 import { prisma } from "@/lib/prisma";
+import he from "he";
+
+/** Ensure a value is a plain string — handles JSON objects/arrays from AI output */
+function ensureString(value: unknown): string {
+  if (typeof value === "string") return he.decode(value);
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    if (Array.isArray(value)) {
+      return (value as unknown[])
+        .map((item, i) => {
+          if (typeof item === "string") return `${i + 1}. ${item}`;
+          if (typeof item === "object" && item !== null) {
+            return Object.entries(item as Record<string, unknown>)
+              .map(([k, v]) => `**${k}**: ${v}`)
+              .join("\n");
+          }
+          return String(item);
+        })
+        .join("\n\n");
+    }
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, val]) => {
+        const cleanKey = key.replace(/([A-Z])/g, " $1").trim();
+        return `**${cleanKey}**\n${val}`;
+      })
+      .join("\n\n");
+  }
+  return String(value);
+}
 
 export interface PipelineResult {
   fetched: number;
@@ -184,11 +213,11 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
 
       await prisma.news.create({
         data: {
-          title: item.title,
-          summary: summarized.summary,
-          detailContent: summarized.detailContent,
-          futureImpact: summarized.futureImpact,
-          buildOnThis: summarized.buildOnThis,
+          title: ensureString(item.title),
+          summary: ensureString(summarized.summary),
+          detailContent: ensureString(summarized.detailContent) || null,
+          futureImpact: ensureString(summarized.futureImpact) || null,
+          buildOnThis: ensureString(summarized.buildOnThis) || null,
           sourceUrl: item.link,
           source: item.source || null,
           imageUrl: item.imageUrl || null,

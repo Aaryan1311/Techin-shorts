@@ -1,4 +1,5 @@
 import Parser from "rss-parser";
+import he from "he";
 
 export interface FeedItem {
   title: string;
@@ -149,10 +150,10 @@ async function fetchRedditFeeds(): Promise<FeedItem[]> {
         return json.data.children
           .filter((post) => post.data.ups >= 500 && !post.data.is_self)
           .map((post) => ({
-            title: post.data.title,
+            title: he.decode(post.data.title),
             link: post.data.url || `https://www.reddit.com${post.data.permalink}`,
-            contentSnippet: post.data.selftext?.slice(0, 500) || post.data.url || "",
-            content: post.data.selftext || post.data.url || "",
+            contentSnippet: he.decode(post.data.selftext?.slice(0, 500) || post.data.url || ""),
+            content: he.decode(post.data.selftext || post.data.url || ""),
             pubDate: new Date(post.data.created_utc * 1000).toISOString(),
             categories: [] as string[],
             source: "reddit",
@@ -183,10 +184,10 @@ export async function fetchAllFeeds(): Promise<FeedItem[]> {
         try {
           const parsed = await parser.parseURL(feed.url);
           return parsed.items.slice(0, 10).map((item) => ({
-            title: item.title || "Untitled",
+            title: he.decode(item.title || "Untitled"),
             link: item.link || "",
-            contentSnippet: item.contentSnippet || item.content || "",
-            content: item.content || item.contentSnippet || "",
+            contentSnippet: he.decode(item.contentSnippet || item.content || ""),
+            content: he.decode(item.content || item.contentSnippet || ""),
             pubDate: item.pubDate,
             categories: item.categories || [],
             source: feed.source,

@@ -171,25 +171,7 @@ export default function NewsCard({ news }: NewsCardProps) {
     );
   };
 
-  const handleShare = async () => {
-    const shareUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/news/${news.id}`
-        : `/news/${news.id}`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: news.title,
-          text: `${news.title} — Techie Shorts`,
-          url: shareUrl,
-        });
-      } catch {
-        // cancelled
-      }
-      return;
-    }
-
+  const handleShare = () => {
     setShowShare(true);
   };
 
@@ -366,6 +348,7 @@ export default function NewsCard({ news }: NewsCardProps) {
         <SharePopup
           newsId={news.id}
           title={news.title}
+          summary={news.summary}
           onClose={() => setShowShare(false)}
         />
       )}

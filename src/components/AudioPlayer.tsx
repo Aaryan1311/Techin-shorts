@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { globalAudio } from "@/lib/globalAudio";
 
 export type Lang = "EN" | "HI" | "HINGLISH";
 
@@ -21,17 +22,39 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
   const [playing, setPlaying] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Stable stop callback for this player instance
+  const stopCallback = useCallback(() => {
+    setPlaying(false);
+  }, []);
+
+  // Stop audio when card scrolls out of view
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.intersectionRatio < 0.5) {
+            globalAudio.stopIfOwner(stopCallback);
+          }
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [stopCallback]);
 
   // Stop audio when card changes / unmounts
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
+      globalAudio.stopIfOwner(stopCallback);
     };
-  }, [newsId]);
+  }, [newsId, stopCallback]);
 
   useEffect(() => {
     setError(null);
@@ -39,29 +62,23 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
 
   const handleLangSwitch = useCallback(
     (newLang: Lang) => {
-      // Stop current playback
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-        setPlaying(false);
-      }
+      globalAudio.stopIfOwner(stopCallback);
       setError(null);
       onLangChange(newLang);
     },
-    [onLangChange]
+    [onLangChange, stopCallback]
   );
 
   const togglePlay = async () => {
-    if (playing && audioRef.current) {
-      audioRef.current.pause();
-      setPlaying(false);
+    if (playing) {
+      globalAudio.stopIfOwner(stopCallback);
       return;
     }
 
     setError(null);
 
     try {
-      // Step 1: Translate if needed (also updates parent's displayed text)
+      // Step 1: Translate if needed
       if (lang !== "EN") {
         setLoadingStep("Translating...");
         const translateRes = await fetch(`/api/news/${newsId}/translate`, {
@@ -77,10 +94,10 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
 
       // Step 2: Get audio — use cached URL if available
       const cachedUrl = cachedAudioUrls?.[lang] || null;
-      let audioData: { audioUrl: string };
+      let audioUrl: string;
 
       if (cachedUrl) {
-        audioData = { audioUrl: cachedUrl };
+        audioUrl = cachedUrl;
       } else {
         setLoadingStep("Generating audio...");
         const audioRes = await fetch(`/api/news/${newsId}/audio`, {
@@ -94,16 +111,12 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
           throw new Error(data.error || "Audio generation failed");
         }
 
-        audioData = await audioRes.json();
+        const audioData = await audioRes.json();
+        audioUrl = audioData.audioUrl;
       }
 
-      // Step 3: Play
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-      }
-
-      const audio = audioRef.current;
-      audio.src = audioData.audioUrl;
+      // Step 3: Play via global audio manager (stops any other playing audio)
+      const audio = globalAudio.play(audioUrl, stopCallback);
       audio.onended = () => setPlaying(false);
       audio.onerror = () => {
         setPlaying(false);
@@ -122,7 +135,7 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
   const isLoading = !!loadingStep;
 
   return (
-    <div>
+    <div ref={containerRef}>
       <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 backdrop-blur-sm">
         {/* Speaker icon */}
         <svg

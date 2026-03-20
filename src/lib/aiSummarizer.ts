@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const VALID_TAGS = [
   "ai-ml",
@@ -27,12 +27,13 @@ export async function summarizeArticle(
   title: string,
   content: string
 ): Promise<SummarizedArticle> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY not configured");
+    throw new Error("GEMINI_API_KEY not configured");
   }
 
-  const client = new Anthropic({ apiKey });
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const prompt = `You are a tech news summarizer for a developer-focused app called "Techie Shorts". Given the article title and content below, generate JSON with these fields:
 
@@ -49,14 +50,8 @@ ${content.slice(0, 3000)}
 
 Respond ONLY with valid JSON, no markdown code fences:`;
 
-  const message = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1500,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text =
-    message.content[0].type === "text" ? message.content[0].text : "";
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
 
   // Parse JSON — strip any accidental code fences
   const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();

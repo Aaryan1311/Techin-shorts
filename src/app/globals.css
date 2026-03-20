@@ -53,19 +53,45 @@
   animation: scale-in 0.2s ease-out both;
 }
 
-/* Vote button pulse */
-@keyframes vote-pulse {
+/* Vote button pop (1.0 → 1.2 → 1.0 in 200ms) */
+@keyframes vote-pop {
   0% {
     transform: scale(1);
   }
   50% {
-    transform: scale(1.15);
+    transform: scale(1.2);
   }
   100% {
     transform: scale(1);
   }
 }
 
+.animate-vote-pop {
+  animation: vote-pop 0.2s ease-out;
+}
+
+/* Legacy alias */
 .animate-vote-pulse {
-  animation: vote-pulse 0.4s ease-out;
+  animation: vote-pop 0.2s ease-out;
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(31 41 55 / 0.4) 25%,
+    rgb(55 65 81 / 0.5) 50%,
+    rgb(31 41 55 / 0.4) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }

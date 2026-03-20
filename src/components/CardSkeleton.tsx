@@ -2,52 +2,46 @@
 
 export default function CardSkeleton() {
   return (
-    <div className="flex h-full w-full items-center justify-center px-4 py-6">
-      <div className="flex h-full w-full max-w-lg flex-col rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 p-6 shadow-2xl">
-        {/* Top bar skeleton */}
-        <div className="mb-4 flex items-center justify-between">
-          <div className="h-3 w-12 animate-pulse rounded bg-white/5" />
-          <div className="h-3 w-16 animate-pulse rounded bg-white/5" />
-        </div>
+    <div className="flex h-full w-full flex-col bg-gray-950">
+      {/* Image placeholder (top 38%) */}
+      <div className="relative w-full animate-shimmer bg-gray-900" style={{ height: "38%" }}>
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-gray-950 to-transparent" />
+      </div>
 
-        {/* Tag pills */}
-        <div className="mb-4 flex gap-2">
-          <div className="h-5 w-16 animate-pulse rounded-full bg-white/5" />
-          <div className="h-5 w-20 animate-pulse rounded-full bg-white/5" />
+      {/* Content area */}
+      <div className="flex flex-1 flex-col px-4 pt-4">
+        {/* Source + time */}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="h-4 w-14 animate-shimmer rounded bg-gray-800" />
+          <div className="h-3 w-10 animate-shimmer rounded bg-gray-800/60" />
         </div>
-
-        {/* Gradient accent */}
-        <div className="mb-4 h-1 w-16 animate-pulse rounded-full bg-indigo-500/20" />
 
         {/* Title */}
-        <div className="mb-2 h-6 w-full animate-pulse rounded bg-white/8" />
-        <div className="mb-4 h-6 w-3/4 animate-pulse rounded bg-white/8" />
+        <div className="mb-1.5 h-6 w-full animate-shimmer rounded bg-gray-800" />
+        <div className="mb-4 h-6 w-3/4 animate-shimmer rounded bg-gray-800" />
 
         {/* Summary lines */}
-        <div className="mb-4 flex-1 space-y-3">
-          <div className="h-4 w-full animate-pulse rounded bg-white/5" />
-          <div className="h-4 w-full animate-pulse rounded bg-white/5" />
-          <div className="h-4 w-5/6 animate-pulse rounded bg-white/5" />
-          <div className="h-4 w-4/6 animate-pulse rounded bg-white/5" />
+        <div className="flex-1 space-y-3 py-4">
+          <div className="h-4 w-full animate-shimmer rounded bg-gray-800/50" />
+          <div className="h-4 w-full animate-shimmer rounded bg-gray-800/50" />
+          <div className="h-4 w-5/6 animate-shimmer rounded bg-gray-800/50" />
+          <div className="h-4 w-4/6 animate-shimmer rounded bg-gray-800/50" />
         </div>
 
-        {/* Audio player skeleton */}
-        <div className="mb-4 h-11 animate-pulse rounded-xl bg-white/[0.03]" />
+        {/* Audio + likes row */}
+        <div className="mb-3 flex items-center gap-3">
+          <div className="h-10 flex-1 animate-shimmer rounded-xl bg-gray-800/30" />
+          <div className="flex gap-2">
+            <div className="h-8 w-14 animate-shimmer rounded-lg bg-gray-800/30" />
+            <div className="h-8 w-14 animate-shimmer rounded-lg bg-gray-800/30" />
+          </div>
+        </div>
 
         {/* Action buttons */}
-        <div className="mb-5 grid grid-cols-3 gap-2">
-          <div className="h-10 animate-pulse rounded-xl bg-white/5" />
-          <div className="h-10 animate-pulse rounded-xl bg-white/5" />
-          <div className="h-10 animate-pulse rounded-xl bg-white/5" />
-        </div>
-
-        {/* Bottom bar */}
-        <div className="flex items-center justify-between border-t border-white/5 pt-4">
-          <div className="h-4 w-16 animate-pulse rounded bg-white/5" />
-          <div className="flex gap-3">
-            <div className="h-8 w-16 animate-pulse rounded-lg bg-white/5" />
-            <div className="h-8 w-16 animate-pulse rounded-lg bg-white/5" />
-          </div>
+        <div className="grid grid-cols-3 gap-2 pb-4">
+          <div className="h-10 animate-shimmer rounded-xl bg-gray-800/30" />
+          <div className="h-10 animate-shimmer rounded-xl bg-gray-800/30" />
+          <div className="h-10 animate-shimmer rounded-xl bg-gray-800/30" />
         </div>
       </div>
     </div>

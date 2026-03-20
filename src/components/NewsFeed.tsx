@@ -7,7 +7,6 @@ import TagFilterBar from "./TagFilterBar";
 import NewsCard from "./NewsCard";
 import type { NewsItem } from "./NewsCard";
 import CardSkeleton from "./CardSkeleton";
-import ProgressDots from "./ProgressDots";
 import { fetchTags, fetchNews, fetchAdminNews } from "@/lib/api";
 
 interface Tag {
@@ -119,7 +118,6 @@ export default function NewsFeed() {
       const elapsed = Date.now() - touchStartTime.current;
       touchStartY.current = null;
 
-      // Detect swipe: at least 50px movement within 300ms
       if (Math.abs(deltaY) > 50 && elapsed < 300) {
         if (deltaY > 0) {
           scrollToIndex(currentIndex + 1);
@@ -196,7 +194,7 @@ export default function NewsFeed() {
         </div>
 
         {/* Feed toggle + Tag filter */}
-        <div className="flex items-center gap-2 px-4 pb-1 pt-0.5">
+        <div className="flex items-center gap-2 px-4 pb-2 pt-0.5">
           {isLoggedIn && (
             <div className="mr-1 flex shrink-0 rounded-lg border border-white/10 bg-white/5 p-0.5">
               <button
@@ -229,11 +227,6 @@ export default function NewsFeed() {
             />
           </div>
         </div>
-
-        {/* Progress dots */}
-        {!loading && news.length > 1 && (
-          <ProgressDots total={news.length} current={currentIndex} />
-        )}
       </header>
 
       {/* Fetch toast */}
@@ -245,10 +238,12 @@ export default function NewsFeed() {
 
       {/* Feed */}
       {loading ? (
-        <div className="flex-1">
-          <div className="h-dvh">
-            <CardSkeleton />
-          </div>
+        <div className="flex-1 snap-y snap-mandatory overflow-y-auto scrollbar-hide">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-dvh snap-start">
+              <CardSkeleton />
+            </div>
+          ))}
         </div>
       ) : news.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">

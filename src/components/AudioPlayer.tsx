@@ -114,7 +114,7 @@ export default function AudioPlayer({ newsId, lang, onLangChange }: AudioPlayerP
   const isLoading = !!loadingStep;
 
   return (
-    <div className="mb-4">
+    <div>
       <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 backdrop-blur-sm">
         {/* Speaker icon */}
         <svg

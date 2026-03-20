@@ -10,6 +10,9 @@ const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
   sdtimes: { label: "SD Times", color: "#1a73e8" },
   bleepingcomputer: { label: "BleepingPC", color: "#c0392b" },
   producthunt: { label: "PH", color: "#da552f" },
+  techmeme: { label: "TechMeme", color: "#2563eb" },
+  lobsters: { label: "Lobsters", color: "#b91c1c" },
+  arstechnica: { label: "Ars", color: "#ff4400" },
 };
 
 interface SourceBadgeProps {

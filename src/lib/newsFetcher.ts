@@ -48,6 +48,9 @@ const RSS_FEEDS = [
   { name: "SD Times", source: "sdtimes", url: "https://sdtimes.com/feed/" },
   { name: "BleepingComputer", source: "bleepingcomputer", url: "https://www.bleepingcomputer.com/feed/" },
   { name: "Product Hunt", source: "producthunt", url: "https://www.producthunt.com/feed" },
+  { name: "TechMeme", source: "techmeme", url: "https://www.techmeme.com/feed.xml" },
+  { name: "Lobsters", source: "lobsters", url: "https://lobste.rs/rss" },
+  { name: "Ars Technica", source: "arstechnica", url: "https://feeds.arstechnica.com/arstechnica/technology-lab" },
 ];
 
 const REDDIT_FEEDS = [

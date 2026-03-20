@@ -1,16 +1,28 @@
-import { fetchAllFeeds } from "@/lib/newsFetcher";
-import { summarizeArticle } from "@/lib/aiSummarizer";
+import { fetchAllFeeds, type FeedItem } from "@/lib/newsFetcher";
+import {
+  classifyArticle,
+  summarizeArticle,
+  type ClassificationResult,
+} from "@/lib/aiCurator";
 import { prisma } from "@/lib/prisma";
 
 export interface PipelineResult {
   fetched: number;
   new: number;
+  classified: number;
+  filtered: number;
   processed: number;
+  filterBreakdown: string;
   results: { title: string; status: string }[];
 }
 
+interface ClassifiedItem {
+  item: FeedItem;
+  classification: ClassificationResult;
+}
+
 export async function runFetchPipeline(): Promise<PipelineResult> {
-  // 1. Fetch RSS feeds
+  // 1. Fetch all feeds
   const feedItems = await fetchAllFeeds();
   console.log(`Fetched ${feedItems.length} feed items`);
 
@@ -31,37 +43,139 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
   );
   console.log(`${newItems.length} new items after deduplication`);
 
-  // Limit to 5 items per run to stay within Groq free tier limits
-  const toProcess = newItems.slice(0, 5);
+  // Limit to 15 items per run for classification (cheap/fast Stage 1)
+  const toClassify = newItems.slice(0, 15);
   const results: { title: string; status: string }[] = [];
 
-  // 3. Summarize and save each article sequentially with delays
-  for (let i = 0; i < toProcess.length; i++) {
-    const item = toProcess[i];
+  // ── Stage 1: Classification (3s delay between calls) ──
+  console.log(`\n── Stage 1: Classifying ${toClassify.length} articles ──`);
+  const classified: ClassifiedItem[] = [];
+  const filterReasons: Record<string, number> = {
+    tutorials: 0,
+    low_quality: 0,
+    not_news: 0,
+    low_relevance: 0,
+    parse_failed: 0,
+  };
 
-    // Wait 5 seconds between articles as a safety margin for Groq rate limits
+  for (let i = 0; i < toClassify.length; i++) {
+    const item = toClassify[i];
+
     if (i > 0) {
-      console.log("Waiting 5s before next article...");
+      await new Promise((r) => setTimeout(r, 3_000));
+    }
+
+    try {
+      const classification = await classifyArticle(
+        item.title,
+        item.contentSnippet || item.content || item.title,
+        item.link,
+        item.source
+      );
+
+      if (!classification) {
+        filterReasons.parse_failed++;
+        results.push({
+          title: item.title,
+          status: "skipped: classification parse failed",
+        });
+        continue;
+      }
+
+      // Apply quality filters
+      if (!classification.isNews) {
+        const cat = classification.category;
+        if (cat === "tutorial" || cat === "blog_post" || cat === "opinion") {
+          filterReasons.tutorials++;
+        } else {
+          filterReasons.not_news++;
+        }
+        results.push({
+          title: item.title,
+          status: `filtered: ${classification.category} (score: ${classification.qualityScore}, reason: ${classification.reasoning})`,
+        });
+        continue;
+      }
+
+      if (classification.qualityScore < 6) {
+        filterReasons.low_quality++;
+        results.push({
+          title: item.title,
+          status: `filtered: low quality (${classification.qualityScore}/10 — ${classification.reasoning})`,
+        });
+        continue;
+      }
+
+      if (classification.relevanceForDevs < 5) {
+        filterReasons.low_relevance++;
+        results.push({
+          title: item.title,
+          status: `filtered: low relevance (${classification.relevanceForDevs}/10)`,
+        });
+        continue;
+      }
+
+      classified.push({ item, classification });
+      console.log(
+        `  ✓ "${item.title}" → quality:${classification.qualityScore} relevance:${classification.relevanceForDevs} trending:${classification.isTrending}`
+      );
+    } catch (err) {
+      filterReasons.parse_failed++;
+      console.error(`[Stage 1] Error classifying "${item.title}":`, err);
+      results.push({
+        title: item.title,
+        status: `error: ${err instanceof Error ? err.message : "unknown"}`,
+      });
+    }
+  }
+
+  const totalFiltered = toClassify.length - classified.length;
+  const filterBreakdown = `Filtered ${totalFiltered}/${toClassify.length} articles: ${filterReasons.tutorials} tutorials, ${filterReasons.low_quality} low quality, ${filterReasons.not_news} not news, ${filterReasons.low_relevance} low relevance, ${filterReasons.parse_failed} parse errors`;
+  console.log(`\n${filterBreakdown}`);
+  console.log(`${classified.length} articles passed to Stage 2\n`);
+
+  // ── Stage 2: Summarization (5s delay between calls) ──
+  // Limit to 5 for summarization (heavier API calls)
+  const toSummarize = classified.slice(0, 5);
+  console.log(`── Stage 2: Summarizing ${toSummarize.length} articles ──`);
+
+  for (let i = 0; i < toSummarize.length; i++) {
+    const { item, classification } = toSummarize[i];
+
+    if (i > 0) {
+      console.log("Waiting 5s before next summarization...");
       await new Promise((r) => setTimeout(r, 5_000));
     }
 
     try {
-      const articleContent = item.contentSnippet || item.content || item.title;
-      const summarized = await summarizeArticle(item.title, articleContent);
+      const articleContent =
+        item.contentSnippet || item.content || item.title;
+      const summarized = await summarizeArticle(
+        item.title,
+        articleContent,
+        classification
+      );
 
       if (!summarized) {
-        results.push({ title: item.title, status: "skipped: JSON parse failed" });
+        results.push({
+          title: item.title,
+          status: "skipped: summarization parse failed",
+        });
         continue;
       }
 
-      if (!summarized.isNews) {
-        results.push({ title: item.title, status: "skipped: not news (tutorial/opinion)" });
-        continue;
+      // Ensure tags include "trending" if isTrending
+      const finalTags = [...summarized.tags];
+      if (
+        classification.isTrending &&
+        !finalTags.includes("trending")
+      ) {
+        finalTags.push("trending");
       }
 
       // Ensure tags exist in DB
       const tagConnections = [];
-      for (const slug of summarized.tags) {
+      for (const slug of finalTags) {
         const tag = await prisma.tag.findUnique({ where: { slug } });
         if (tag) {
           tagConnections.push({ tag: { connect: { slug } } });
@@ -85,9 +199,13 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
         },
       });
 
-      results.push({ title: item.title, status: "success" });
+      results.push({
+        title: item.title,
+        status: `success (quality:${classification.qualityScore} tags:${finalTags.join(",")})`,
+      });
+      console.log(`  ✓ Saved: "${item.title}"`);
     } catch (err) {
-      console.error(`Failed to process "${item.title}":`, err);
+      console.error(`[Stage 2] Failed to process "${item.title}":`, err);
       results.push({
         title: item.title,
         status: `error: ${err instanceof Error ? err.message : "unknown"}`,
@@ -98,7 +216,10 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
   return {
     fetched: feedItems.length,
     new: newItems.length,
-    processed: toProcess.length,
+    classified: toClassify.length,
+    filtered: totalFiltered,
+    processed: toSummarize.length,
+    filterBreakdown,
     results,
   };
 }

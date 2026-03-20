@@ -31,7 +31,7 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
   );
   console.log(`${newItems.length} new items after deduplication`);
 
-  // Limit to 5 items per run to stay within Gemini free tier limits
+  // Limit to 5 items per run to stay within Groq free tier limits
   const toProcess = newItems.slice(0, 5);
   const results: { title: string; status: string }[] = [];
 
@@ -39,15 +39,20 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
   for (let i = 0; i < toProcess.length; i++) {
     const item = toProcess[i];
 
-    // Wait 15 seconds between articles to avoid rate limits
+    // Wait 5 seconds between articles as a safety margin for Groq rate limits
     if (i > 0) {
-      console.log("Waiting 15s before next article...");
-      await new Promise((r) => setTimeout(r, 15_000));
+      console.log("Waiting 5s before next article...");
+      await new Promise((r) => setTimeout(r, 5_000));
     }
 
     try {
       const articleContent = item.contentSnippet || item.content || item.title;
       const summarized = await summarizeArticle(item.title, articleContent);
+
+      if (!summarized) {
+        results.push({ title: item.title, status: "skipped: JSON parse failed" });
+        continue;
+      }
 
       // Ensure tags exist in DB
       const tagConnections = [];

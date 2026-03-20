@@ -23,10 +23,33 @@ interface SummarizedArticle {
   tags: string[]; // tag slugs
 }
 
+function ensureString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item, i) => {
+        if (typeof item === "string") return `${i + 1}. ${item}`;
+        if (typeof item === "object" && item !== null) {
+          const name = item.name || item.title || "";
+          const diff = item.difficulty || item.level || "";
+          const desc = item.description || "";
+          const bracket = diff ? ` [${diff}]` : "";
+          return `${i + 1}. **${name}**${bracket} - ${desc}`;
+        }
+        return `${i + 1}. ${String(item)}`;
+      })
+      .join("\n");
+  }
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
+  }
+  return String(value || "");
+}
+
 export async function summarizeArticle(
   title: string,
   content: string
-): Promise<SummarizedArticle> {
+): Promise<SummarizedArticle | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error("GROQ_API_KEY not configured");
@@ -74,20 +97,37 @@ Respond ONLY with valid JSON, no markdown code fences:`;
     text = retry.choices[0]?.message?.content || "";
   }
 
-  // Parse JSON — strip any accidental code fences
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  const parsed = JSON.parse(cleaned);
+  // Parse JSON — strip markdown code fences, trim whitespace
+  let cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    // Try extracting JSON from first { to last }
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) {
+      console.error(`Could not parse AI response for "${title}", skipping`);
+      return null;
+    }
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      console.error(`JSON still malformed for "${title}", skipping`);
+      return null;
+    }
+  }
 
   // Validate tags
-  const validatedTags = (parsed.tags || []).filter((t: string) =>
-    VALID_TAGS.includes(t)
-  );
+  const validatedTags = (
+    Array.isArray(parsed.tags) ? parsed.tags : []
+  ).filter((t: string) => VALID_TAGS.includes(t));
 
   return {
-    summary: parsed.summary || "No summary available.",
-    detailContent: parsed.detailContent || "",
-    futureImpact: parsed.futureImpact || "",
-    buildOnThis: parsed.buildOnThis || "",
+    summary: ensureString(parsed.summary) || "No summary available.",
+    detailContent: ensureString(parsed.detailContent),
+    futureImpact: ensureString(parsed.futureImpact),
+    buildOnThis: ensureString(parsed.buildOnThis),
     tags: validatedTags.length > 0 ? validatedTags : ["backend"],
   };
 }

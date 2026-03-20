@@ -31,12 +31,20 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
   );
   console.log(`${newItems.length} new items after deduplication`);
 
-  // Limit to 15 items per run to avoid API rate limits
-  const toProcess = newItems.slice(0, 15);
+  // Limit to 5 items per run to stay within Gemini free tier limits
+  const toProcess = newItems.slice(0, 5);
   const results: { title: string; status: string }[] = [];
 
-  // 3. Summarize and save each article
-  for (const item of toProcess) {
+  // 3. Summarize and save each article sequentially with delays
+  for (let i = 0; i < toProcess.length; i++) {
+    const item = toProcess[i];
+
+    // Wait 5 seconds between articles to avoid rate limits
+    if (i > 0) {
+      console.log("Waiting 5s before next article...");
+      await new Promise((r) => setTimeout(r, 5_000));
+    }
+
     try {
       const articleContent = item.contentSnippet || item.content || item.title;
       const summarized = await summarizeArticle(item.title, articleContent);

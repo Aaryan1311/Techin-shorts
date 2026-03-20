@@ -47,8 +47,9 @@ model News {
   summary          String // 60-80 word short summary shown on the card
   summaryHi        String? // Hindi translation in देवनागरी
   summaryHinglish  String? // Hinglish (romanized Hindi)
-  sourceUrl String? // original article link
-  imageUrl  String?
+  sourceUrl  String? // original article link
+  source     String? // e.g. "hackernews", "devto", "reddit", "techcrunch", "theverge", "github"
+  imageUrl   String?
 
   // AI-generated extended content (populated later via Claude API)
   detailContent   String? // full "Read Detail" content

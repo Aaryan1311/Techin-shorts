@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import AudioPlayer, { type Lang } from "./AudioPlayer";
+import SharePopup from "./SharePopup";
+import SourceBadge from "./SourceBadge";
+import { interactWithNews, translateNews, saveLanguagePreference } from "@/lib/api";
 
 interface Tag {
   id: string;
@@ -11,11 +14,12 @@ interface Tag {
   color: string;
 }
 
-interface NewsItem {
+export interface NewsItem {
   id: string;
   title: string;
   summary: string;
   sourceUrl: string;
+  source: string | null;
   imageUrl: string | null;
   likeCount: number;
   dislikeCount: number;
@@ -45,13 +49,15 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
         ? "dislike"
         : null
   );
+  const [likeAnim, setLikeAnim] = useState(false);
+  const [dislikeAnim, setDislikeAnim] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
-  // Language + translation state lives here so summary swaps in-place
+  // Language + translation state
   const [lang, setLang] = useState<Lang>("EN");
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
 
-  // Load saved language preference
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LS_KEY) as Lang | null;
@@ -66,7 +72,6 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
     }
   }, [news.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset translation when card changes
   useEffect(() => {
     setTranslatedText(null);
   }, [news.id]);
@@ -74,17 +79,10 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
   const fetchTranslation = async (targetLang: Lang, newsId: string) => {
     setTranslating(true);
     try {
-      const res = await fetch(`/api/news/${newsId}/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: targetLang }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTranslatedText(data.text);
-      }
+      const data = await translateNews(newsId, targetLang);
+      if (data) setTranslatedText(data.text);
     } catch {
-      // keep original text on failure
+      // keep original
     } finally {
       setTranslating(false);
     }
@@ -94,20 +92,12 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
     (newLang: Lang) => {
       setLang(newLang);
       setTranslatedText(null);
-
       try {
         localStorage.setItem(LS_KEY, newLang);
       } catch {
         // ignore
       }
-
-      // Save preference (fire and forget)
-      fetch("/api/user/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferredLanguage: newLang }),
-      }).catch(() => {});
-
+      saveLanguagePreference(newLang);
       if (newLang !== "EN") {
         fetchTranslation(newLang, news.id);
       }
@@ -118,6 +108,15 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
   const handleInteract = async (type: "LIKE" | "DISLIKE") => {
     const isLike = type === "LIKE";
     const currentVote = isLike ? "like" : "dislike";
+
+    // Trigger animation
+    if (isLike) {
+      setLikeAnim(true);
+      setTimeout(() => setLikeAnim(false), 400);
+    } else {
+      setDislikeAnim(true);
+      setTimeout(() => setDislikeAnim(false), 400);
+    }
 
     if (voted === currentVote) {
       if (isLike) setLikes((l) => l - 1);
@@ -131,189 +130,209 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
       setVoted(currentVote);
     }
 
-    const res = await fetch(`/api/news/${news.id}/interact`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setLikes(data.likeCount);
-      setDislikes(data.dislikeCount);
-      setVoted(
-        data.userInteraction === "LIKE"
-          ? "like"
-          : data.userInteraction === "DISLIKE"
-            ? "dislike"
-            : null
-      );
-    }
+    const data = await interactWithNews(news.id, type);
+    setLikes(data.likeCount);
+    setDislikes(data.dislikeCount);
+    setVoted(
+      data.userInteraction === "LIKE"
+        ? "like"
+        : data.userInteraction === "DISLIKE"
+          ? "dislike"
+          : null
+    );
   };
 
-  // Display the right text based on language
+  const handleShare = async () => {
+    const shareUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/news/${news.id}`
+        : `/news/${news.id}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: news.title,
+          text: `${news.title} — Techie Shorts`,
+          url: shareUrl,
+        });
+        return;
+      } catch {
+        // User cancelled or API failed — fall through to popup
+      }
+    }
+    setShowShare(true);
+  };
+
   const displaySummary =
-    lang === "EN"
-      ? news.summary
-      : translatedText || news.summary;
+    lang === "EN" ? news.summary : translatedText || news.summary;
 
   const timeAgo = getTimeAgo(news.publishedAt || news.createdAt);
 
   return (
-    <div className="flex h-full w-full items-center justify-center px-4 py-6">
-      <div className="flex h-full w-full max-w-lg flex-col rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 p-6 shadow-2xl">
-        {/* Card counter */}
-        <div className="mb-4 flex items-center justify-between">
-          <span className="text-xs text-gray-500">
-            {index + 1} / {total}
-          </span>
-          <span className="text-xs text-gray-500">{timeAgo}</span>
-        </div>
+    <>
+      <div className="flex h-full w-full items-center justify-center px-4 py-4">
+        <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
+          {/* Top gradient accent */}
+          <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
-        {/* Tags */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {news.tags.map((tag) => (
-            <span
-              key={tag.id}
-              className="rounded-full px-2.5 py-0.5 text-xs font-medium"
-              style={{
-                backgroundColor: `${tag.color}20`,
-                color: tag.color,
-                border: `1px solid ${tag.color}40`,
-              }}
-            >
-              {tag.name}
-            </span>
-          ))}
-        </div>
-
-        {/* Title */}
-        <h2 className="mb-4 text-xl font-bold leading-tight text-white sm:text-2xl">
-          {news.title}
-        </h2>
-
-        {/* Summary — swaps in-place based on language */}
-        <div className="relative mb-4 flex-1">
-          <p
-            className={`text-base leading-relaxed text-gray-300 transition-opacity duration-200 ${
-              translating ? "opacity-50" : "opacity-100"
-            }`}
-          >
-            {displaySummary}
-          </p>
-          {translating && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+          <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
+            {/* Top row: counter, source, time, share */}
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-[11px] font-medium text-gray-500">
+                {index + 1}/{total}
+              </span>
+              <SourceBadge source={news.source} />
+              <span className="ml-auto text-[11px] text-gray-500">{timeAgo}</span>
+              <button
+                onClick={handleShare}
+                className="rounded-lg p-1.5 text-gray-500 transition-all hover:bg-white/10 hover:text-white"
+                aria-label="Share"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Audio player */}
-        <AudioPlayer
-          newsId={news.id}
-          lang={lang}
-          onLangChange={handleLangChange}
-        />
+            {/* Tags — compact */}
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {news.tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="rounded-full px-2 py-px text-[10px] font-semibold"
+                  style={{
+                    backgroundColor: `${tag.color}18`,
+                    color: tag.color,
+                    border: `1px solid ${tag.color}30`,
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
 
-        {/* Action buttons */}
-        <div className="mb-5 grid grid-cols-3 gap-2">
-          <button
-            onClick={() => router.push(`/news/${news.id}`)}
-            className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-400 transition-all hover:bg-indigo-500/20 sm:text-sm"
-          >
-            Read Detail
-          </button>
-          <button
-            onClick={() => router.push(`/news/${news.id}/future`)}
-            className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-xs font-semibold text-purple-400 transition-all hover:bg-purple-500/20 sm:text-sm"
-          >
-            Future Impact
-          </button>
-          <button
-            onClick={() => router.push(`/news/${news.id}/build`)}
-            className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20 sm:text-sm"
-          >
-            Build on This
-          </button>
-        </div>
+            {/* Title */}
+            <h2 className="mb-3 text-lg font-bold leading-snug text-white sm:text-xl">
+              {news.title}
+            </h2>
 
-        {/* Bottom row: source + reactions */}
-        <div className="flex items-center justify-between border-t border-white/5 pt-4">
-          {/* Source */}
-          <a
-            href={news.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-gray-500 transition-colors hover:text-gray-300"
-          >
-            <svg
-              className="h-3.5 w-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-              />
-            </svg>
-            Source
-          </a>
-
-          {/* Reactions */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleInteract("LIKE")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
-                voted === "like"
-                  ? "bg-emerald-500/20 text-emerald-400"
-                  : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
-              }`}
-            >
-              <svg
-                className="h-4 w-4"
-                fill={voted === "like" ? "currentColor" : "none"}
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+            {/* Summary — centered in remaining space */}
+            <div className="relative mb-3 flex flex-1 items-center">
+              <p
+                className={`text-sm leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base ${
+                  translating ? "opacity-50" : "opacity-100"
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"
-                />
-              </svg>
-              <span className="font-medium">{likes}</span>
-            </button>
-            <button
-              onClick={() => handleInteract("DISLIKE")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
-                voted === "dislike"
-                  ? "bg-red-500/20 text-red-400"
-                  : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
-              }`}
-            >
-              <svg
-                className="h-4 w-4"
-                fill={voted === "dislike" ? "currentColor" : "none"}
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+                {displaySummary}
+              </p>
+              {translating && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                </div>
+              )}
+            </div>
+
+            {/* Audio player */}
+            <AudioPlayer
+              newsId={news.id}
+              lang={lang}
+              onLangChange={handleLangChange}
+            />
+
+            {/* Action buttons with hover effects */}
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              <button
+                onClick={() => router.push(`/news/${news.id}`)}
+                className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-400 transition-all hover:scale-[1.03] hover:bg-indigo-500/20 hover:shadow-md hover:shadow-indigo-500/10 active:scale-[0.97] sm:text-sm"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"
-                />
-              </svg>
-              <span className="font-medium">{dislikes}</span>
-            </button>
+                Read Detail
+              </button>
+              <button
+                onClick={() => router.push(`/news/${news.id}/future`)}
+                className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2.5 text-xs font-semibold text-purple-400 transition-all hover:scale-[1.03] hover:bg-purple-500/20 hover:shadow-md hover:shadow-purple-500/10 active:scale-[0.97] sm:text-sm"
+              >
+                Future Impact
+              </button>
+              <button
+                onClick={() => router.push(`/news/${news.id}/build`)}
+                className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-400 transition-all hover:scale-[1.03] hover:bg-emerald-500/20 hover:shadow-md hover:shadow-emerald-500/10 active:scale-[0.97] sm:text-sm"
+              >
+                Build on This
+              </button>
+            </div>
+
+            {/* Bottom row: source + reactions */}
+            <div className="flex items-center justify-between border-t border-white/5 pt-3">
+              <a
+                href={news.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-gray-500 transition-colors hover:text-gray-300"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Source
+              </a>
+
+              {/* Like / Dislike with animation */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleInteract("LIKE")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
+                    likeAnim ? "animate-vote-pulse" : ""
+                  } ${
+                    voted === "like"
+                      ? "bg-emerald-500/20 text-emerald-400 shadow-sm shadow-emerald-500/20"
+                      : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                  }`}
+                >
+                  <svg
+                    className={`h-4 w-4 transition-transform ${likeAnim ? "scale-125" : ""}`}
+                    fill={voted === "like" ? "currentColor" : "none"}
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" />
+                  </svg>
+                  {likes > 0 && <span className="font-medium">{likes}</span>}
+                </button>
+                <button
+                  onClick={() => handleInteract("DISLIKE")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all ${
+                    dislikeAnim ? "animate-vote-pulse" : ""
+                  } ${
+                    voted === "dislike"
+                      ? "bg-red-500/20 text-red-400 shadow-sm shadow-red-500/20"
+                      : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                  }`}
+                >
+                  <svg
+                    className={`h-4 w-4 transition-transform ${dislikeAnim ? "scale-125" : ""}`}
+                    fill={voted === "dislike" ? "currentColor" : "none"}
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z" />
+                  </svg>
+                  {dislikes > 0 && <span className="font-medium">{dislikes}</span>}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {showShare && (
+        <SharePopup
+          newsId={news.id}
+          title={news.title}
+          onClose={() => setShowShare(false)}
+        />
+      )}
+    </>
   );
 }
 

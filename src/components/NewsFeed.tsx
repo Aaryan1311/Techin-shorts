@@ -1,31 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import TagFilterBar from "./TagFilterBar";
 import NewsCard from "./NewsCard";
+import type { NewsItem } from "./NewsCard";
+import CardSkeleton from "./CardSkeleton";
+import ProgressDots from "./ProgressDots";
+import { fetchTags, fetchNews, fetchAdminNews } from "@/lib/api";
 
 interface Tag {
   id: string;
   name: string;
   slug: string;
   color: string;
-}
-
-interface NewsItem {
-  id: string;
-  title: string;
-  summary: string;
-  sourceUrl: string;
-  imageUrl: string | null;
-  likeCount: number;
-  dislikeCount: number;
-  viewCount: number;
-  publishedAt: string;
-  createdAt: string;
-  tags: Tag[];
-  userInteraction?: string | null;
 }
 
 export default function NewsFeed() {
@@ -37,6 +26,11 @@ export default function NewsFeed() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const feedRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchStartTime = useRef<number>(0);
 
   const isLoggedIn = status === "authenticated" && !!session?.user;
   const isAdmin = isLoggedIn && (session?.user as { isAdmin?: boolean })?.isAdmin;
@@ -50,19 +44,9 @@ export default function NewsFeed() {
         setFetching(false);
         return;
       }
-      const res = await fetch("/api/admin/fetch-news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setFetchMsg(`Fetched ${data.processed} new articles`);
-        // Refresh the feed
-        setActiveTag(null);
-      } else {
-        setFetchMsg(data.error || "Failed to fetch news");
-      }
+      const data = await fetchAdminNews(secret);
+      setFetchMsg(data.ok ? `Fetched ${data.processed} new articles` : (data.error || "Failed"));
+      if (data.ok) setActiveTag(null);
     } catch {
       setFetchMsg("Network error");
     } finally {
@@ -72,12 +56,9 @@ export default function NewsFeed() {
   };
 
   useEffect(() => {
-    fetch("/api/tags")
-      .then((res) => res.json())
-      .then(setTags);
+    fetchTags().then(setTags);
   }, []);
 
-  // Switch to "all" if user logs out while on "personal"
   useEffect(() => {
     if (!isLoggedIn && feedMode === "personal") {
       setFeedMode("all");
@@ -86,19 +67,69 @@ export default function NewsFeed() {
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (activeTag) params.set("tag", activeTag);
-    if (feedMode === "personal") params.set("feed", "personal");
-    const qs = params.toString();
-    const url = `/api/news${qs ? `?${qs}` : ""}`;
-
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        setNews(data);
-        setLoading(false);
-      });
+    setCurrentIndex(0);
+    fetchNews({ tag: activeTag, feed: feedMode }).then((data) => {
+      setNews(data);
+      setLoading(false);
+    });
   }, [activeTag, feedMode]);
+
+  // Track current card via scroll position
+  const handleScroll = useCallback(() => {
+    if (!feedRef.current) return;
+    const container = feedRef.current;
+    const cardHeight = container.clientHeight;
+    if (cardHeight === 0) return;
+    const idx = Math.round(container.scrollTop / cardHeight);
+    setCurrentIndex(Math.min(idx, news.length - 1));
+  }, [news.length]);
+
+  // Scroll to specific index
+  const scrollToIndex = useCallback((idx: number) => {
+    if (!feedRef.current || idx < 0 || idx >= news.length) return;
+    const cardHeight = feedRef.current.clientHeight;
+    feedRef.current.scrollTo({ top: idx * cardHeight, behavior: "smooth" });
+  }, [news.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowDown" || e.key === "j") {
+        e.preventDefault();
+        scrollToIndex(currentIndex + 1);
+      } else if (e.key === "ArrowUp" || e.key === "k") {
+        e.preventDefault();
+        scrollToIndex(currentIndex - 1);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [currentIndex, scrollToIndex]);
+
+  // Touch swipe handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartY.current === null) return;
+      const deltaY = touchStartY.current - e.changedTouches[0].clientY;
+      const elapsed = Date.now() - touchStartTime.current;
+      touchStartY.current = null;
+
+      // Detect swipe: at least 50px movement within 300ms
+      if (Math.abs(deltaY) > 50 && elapsed < 300) {
+        if (deltaY > 0) {
+          scrollToIndex(currentIndex + 1);
+        } else {
+          scrollToIndex(currentIndex - 1);
+        }
+      }
+    },
+    [currentIndex, scrollToIndex]
+  );
 
   return (
     <div className="flex h-dvh flex-col bg-gray-950">
@@ -106,7 +137,6 @@ export default function NewsFeed() {
       <header className="sticky top-0 z-20 border-b border-white/5 bg-gray-950/80 backdrop-blur-xl">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            {/* Logo */}
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
               <svg
                 className="h-5 w-5 text-white"
@@ -115,20 +145,15 @@ export default function NewsFeed() {
                 stroke="currentColor"
                 strokeWidth={2.5}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">Techie Shorts</h1>
-              <p className="text-xs text-gray-500">Dev news in 60 words</p>
+              <p className="text-[11px] text-gray-500">Dev news in 60 words</p>
             </div>
           </div>
 
-          {/* Auth buttons */}
           <div className="flex items-center gap-2">
             {status === "loading" ? null : session?.user ? (
               <>
@@ -204,6 +229,11 @@ export default function NewsFeed() {
             />
           </div>
         </div>
+
+        {/* Progress dots */}
+        {!loading && news.length > 1 && (
+          <ProgressDots total={news.length} current={currentIndex} />
+        )}
       </header>
 
       {/* Fetch toast */}
@@ -215,10 +245,9 @@ export default function NewsFeed() {
 
       {/* Feed */}
       {loading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-            <span className="text-sm text-gray-500">Loading news...</span>
+        <div className="flex-1">
+          <div className="h-dvh">
+            <CardSkeleton />
           </div>
         </div>
       ) : news.length === 0 ? (
@@ -241,9 +270,19 @@ export default function NewsFeed() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 snap-y snap-mandatory overflow-y-auto">
+        <div
+          ref={feedRef}
+          onScroll={handleScroll}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="flex-1 snap-y snap-mandatory overflow-y-auto scrollbar-hide"
+        >
           {news.map((item, i) => (
-            <div key={item.id} className="h-dvh snap-start">
+            <div
+              key={item.id}
+              className="h-dvh snap-start animate-card-in"
+              style={{ animationDelay: i === 0 ? "0ms" : "0ms" }}
+            >
               <NewsCard news={item} index={i} total={news.length} />
             </div>
           ))}

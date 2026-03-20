@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
     title: item.title,
     summary: item.summary,
     sourceUrl: item.sourceUrl,
+    source: item.source || null,
     imageUrl: item.imageUrl,
     likeCount: item.likeCount,
     dislikeCount: item.dislikeCount,

@@ -71,6 +71,7 @@ export async function runFetchPipeline(): Promise<PipelineResult> {
           futureImpact: summarized.futureImpact,
           buildOnThis: summarized.buildOnThis,
           sourceUrl: item.link,
+          source: item.source || null,
           publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
           tags: {
             create: tagConnections,

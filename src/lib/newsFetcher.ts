@@ -8,12 +8,34 @@ export interface FeedItem {
   pubDate?: string;
   categories?: string[];
   source: string;
+  imageUrl?: string;
 }
 
-const parser = new Parser({
+// Custom fields to extract media content from RSS
+type CustomItem = {
+  title?: string;
+  link?: string;
+  contentSnippet?: string;
+  content?: string;
+  pubDate?: string;
+  categories?: string[];
+  enclosure?: { url?: string; type?: string };
+  "media:content"?: { $: { url?: string } };
+  "media:thumbnail"?: { $: { url?: string } };
+  "content:encoded"?: string;
+};
+
+const parser = new Parser<Record<string, unknown>, CustomItem>({
   timeout: 10000,
   headers: {
     "User-Agent": "TechieShorts/1.0",
+  },
+  customFields: {
+    item: [
+      ["media:content", "media:content"],
+      ["media:thumbnail", "media:thumbnail"],
+      ["content:encoded", "content:encoded"],
+    ],
   },
 });
 
@@ -32,6 +54,8 @@ const REDDIT_FEEDS = [
   { subreddit: "python", url: "https://www.reddit.com/r/python/top.json?t=day&limit=10" },
   { subreddit: "devops", url: "https://www.reddit.com/r/devops/top.json?t=day&limit=10" },
   { subreddit: "machinelearning", url: "https://www.reddit.com/r/machinelearning/top.json?t=day&limit=10" },
+  { subreddit: "developersIndia", url: "https://www.reddit.com/r/developersIndia/top.json?t=day&limit=10" },
+  { subreddit: "AI_India", url: "https://www.reddit.com/r/AI_India/top.json?t=day&limit=10" },
 ];
 
 interface RedditPost {
@@ -42,6 +66,12 @@ interface RedditPost {
     selftext: string;
     ups: number;
     created_utc: number;
+    thumbnail: string;
+    preview?: {
+      images?: Array<{
+        source?: { url?: string };
+      }>;
+    };
   };
 }
 
@@ -49,6 +79,55 @@ interface RedditResponse {
   data: {
     children: RedditPost[];
   };
+}
+
+/** Extract the best image URL from an RSS item */
+function extractRssImage(item: CustomItem): string | undefined {
+  // 1. enclosure (common in podcasts/news feeds)
+  if (item.enclosure?.url && item.enclosure.type?.startsWith("image/")) {
+    return item.enclosure.url;
+  }
+
+  // 2. media:content
+  const mediaContent = item["media:content"];
+  if (mediaContent && typeof mediaContent === "object") {
+    const url = (mediaContent as { $?: { url?: string } }).$?.url;
+    if (url) return url;
+  }
+
+  // 3. media:thumbnail
+  const mediaThumbnail = item["media:thumbnail"];
+  if (mediaThumbnail && typeof mediaThumbnail === "object") {
+    const url = (mediaThumbnail as { $?: { url?: string } }).$?.url;
+    if (url) return url;
+  }
+
+  // 4. First <img> in content or content:encoded
+  const html = item["content:encoded"] || item.content || "";
+  if (typeof html === "string") {
+    const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (imgMatch?.[1]) return imgMatch[1];
+  }
+
+  return undefined;
+}
+
+/** Extract the best image URL from a Reddit post */
+function extractRedditImage(post: RedditPost["data"]): string | undefined {
+  // 1. preview images (best quality)
+  const previewUrl = post.preview?.images?.[0]?.source?.url;
+  if (previewUrl) {
+    // Reddit HTML-encodes the URL in preview
+    return previewUrl.replace(/&amp;/g, "&");
+  }
+
+  // 2. thumbnail (if it's a valid URL, not a placeholder)
+  const invalidThumbnails = ["self", "default", "nsfw", "spoiler", "image", ""];
+  if (post.thumbnail && !invalidThumbnails.includes(post.thumbnail) && post.thumbnail.startsWith("http")) {
+    return post.thumbnail;
+  }
+
+  return undefined;
 }
 
 async function fetchRedditFeeds(): Promise<FeedItem[]> {
@@ -74,6 +153,7 @@ async function fetchRedditFeeds(): Promise<FeedItem[]> {
             pubDate: new Date(post.data.created_utc * 1000).toISOString(),
             categories: [] as string[],
             source: "reddit",
+            imageUrl: extractRedditImage(post.data),
           }));
       } catch (err) {
         console.error(`Failed to fetch r/${feed.subreddit}:`, err);
@@ -107,6 +187,7 @@ export async function fetchAllFeeds(): Promise<FeedItem[]> {
             pubDate: item.pubDate,
             categories: item.categories || [],
             source: feed.source,
+            imageUrl: extractRssImage(item),
           }));
         } catch (err) {
           console.error(`Failed to fetch ${feed.name}:`, err);

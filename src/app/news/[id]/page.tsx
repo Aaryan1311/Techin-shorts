@@ -16,6 +16,7 @@ interface NewsDetail {
   summary: string;
   detailContent: string | null;
   sourceUrl: string | null;
+  imageUrl: string | null;
   tags: Tag[];
   publishedAt: string;
 }
@@ -99,6 +100,21 @@ export default function ReadDetailPage() {
             year: "numeric",
           })}
         </p>
+
+        {/* Hero image */}
+        {news.imageUrl && (
+          <div className="mb-8 overflow-hidden rounded-xl">
+            <img
+              src={news.imageUrl}
+              alt={news.title}
+              className="w-full object-cover"
+              style={{ maxHeight: "320px" }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).parentElement!.style.display = "none";
+              }}
+            />
+          </div>
+        )}
 
         {/* Accent bar */}
         <div className="mb-8 h-1 w-16 rounded-full bg-indigo-500" />

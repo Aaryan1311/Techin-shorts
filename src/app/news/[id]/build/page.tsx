@@ -8,6 +8,7 @@ interface NewsDetail {
   title: string;
   summary: string;
   buildOnThis: string | null;
+  imageUrl: string | null;
   tags: { id: string; name: string; slug: string; color: string }[];
   publishedAt: string;
 }
@@ -111,6 +112,21 @@ export default function BuildOnThisPage() {
             year: "numeric",
           })}
         </p>
+
+        {/* Hero image */}
+        {news.imageUrl && (
+          <div className="mb-8 overflow-hidden rounded-xl">
+            <img
+              src={news.imageUrl}
+              alt={news.title}
+              className="w-full object-cover"
+              style={{ maxHeight: "320px" }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).parentElement!.style.display = "none";
+              }}
+            />
+          </div>
+        )}
 
         {/* Emerald accent bar */}
         <div className="mb-8 h-1 w-16 rounded-full bg-emerald-500" />

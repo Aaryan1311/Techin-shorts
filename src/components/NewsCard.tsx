@@ -211,10 +211,23 @@ export default function NewsCard({ news, index, total }: NewsCardProps) {
               ))}
             </div>
 
-            {/* Title */}
-            <h2 className="mb-3 text-lg font-bold leading-snug text-white sm:text-xl">
-              {news.title}
-            </h2>
+            {/* Title + thumbnail */}
+            <div className="mb-3 flex gap-3">
+              <h2 className="flex-1 text-lg font-bold leading-snug text-white sm:text-xl">
+                {news.title}
+              </h2>
+              {news.imageUrl && (
+                <img
+                  src={news.imageUrl}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+            </div>
 
             {/* Summary — centered in remaining space */}
             <div className="relative mb-3 flex flex-1 items-center">

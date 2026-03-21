@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +24,27 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
+      if (result.error === "EMAIL_NOT_VERIFIED") {
+        // Send a new OTP and redirect to verify page
+        try {
+          await fetch("/api/auth/resend-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, purpose: "verify" }),
+          });
+        } catch {
+          // silent
+        }
+        // Store password for auto-login after verification
+        try {
+          sessionStorage.setItem("_ts_pwd", password);
+        } catch {
+          // ignore
+        }
+        router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
       setError("Invalid email or password");
       setLoading(false);
       return;
@@ -71,9 +94,17 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-300">
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-300">
+                  Password
+                </label>
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-xs text-gray-500 transition-colors hover:text-indigo-400 hover:underline"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}

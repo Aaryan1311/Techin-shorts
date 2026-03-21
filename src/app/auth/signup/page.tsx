@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function SignUpPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,21 +32,15 @@ export default function SignUpPage() {
         return;
       }
 
-      // Auto-login after signup
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Account created but login failed. Please try logging in.");
-        setLoading(false);
-        return;
+      // Store password temporarily for auto-login after verification
+      try {
+        sessionStorage.setItem("_ts_pwd", password);
+      } catch {
+        // ignore
       }
 
-      // Redirect to onboarding
-      window.location.href = "/onboarding";
+      // Redirect to verify page
+      router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
     } catch {
       setError("Network error. Please try again.");
       setLoading(false);

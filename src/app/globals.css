@@ -75,6 +75,17 @@
   animation: vote-pop 0.2s ease-out;
 }
 
+/* OTP shake animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 50%, 90% { transform: translateX(-4px); }
+  30%, 70% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
 /* Skeleton shimmer */
 @keyframes shimmer {
   0% {

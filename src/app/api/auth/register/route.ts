@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rateLimit";
 import { sanitize } from "@/lib/sanitize";
+import { generateOTP, sendOTPEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   // Rate limit auth endpoints strictly
@@ -48,8 +49,24 @@ export async function POST(request: NextRequest) {
       email,
       password: hashed,
       isAdmin: isFirstUser,
+      emailVerified: false,
     },
   });
 
-  return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
+  // Generate and send OTP
+  const otp = generateOTP();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      otp,
+      otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+      otpPurpose: "verify",
+    },
+  });
+  await sendOTPEmail(email, otp, "verify");
+
+  return NextResponse.json(
+    { success: true, requiresVerification: true, email },
+    { status: 201 }
+  );
 }

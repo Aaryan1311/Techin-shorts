@@ -20,6 +20,13 @@ model User {
   role              UserRole?
   quizCompletedAt   DateTime?
 
+  emailVerified    Boolean   @default(false)
+  otp              String?
+  otpExpiry        DateTime?
+  otpPurpose       String?   // "verify" or "reset"
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
   tagFollows        UserTagFollow[]
   newsInteractions  UserNewsInteraction[]
   behaviors         UserBehavior[]

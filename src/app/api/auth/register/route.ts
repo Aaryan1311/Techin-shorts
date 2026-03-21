@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { sanitize } from "@/lib/sanitize";
 
 export async function POST(request: NextRequest) {
+  // Rate limit auth endpoints strictly
+  const rateLimited = await applyRateLimit(request, "auth");
+  if (rateLimited) return rateLimited;
+
   const body = await request.json();
-  const { name, email, password } = body;
+  const name = typeof body.name === "string" ? sanitize(body.name) : undefined;
+  const email = typeof body.email === "string" ? sanitize(body.email) : undefined;
+  const { password } = body;
 
   if (!email || !password) {
     return NextResponse.json(

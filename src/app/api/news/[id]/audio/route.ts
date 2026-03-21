@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { coalesce } from "@/lib/requestCoalescer";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { checkCostGuard } from "@/lib/costGuard";
 
 const ELEVENLABS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
 const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel — works for EN, HI, Hinglish
@@ -23,6 +25,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limit
+  const rateLimited = await applyRateLimit(request, "audio");
+  if (rateLimited) return rateLimited;
+
   const body = await request.json();
   const { language } = body;
 
@@ -84,6 +90,10 @@ export async function POST(
         textToSpeak = news.summaryHinglish;
       }
 
+      // Cost guard check
+      const allowed = await checkCostGuard("elevenlabs");
+      if (!allowed) throw new Error("DAILY_LIMIT_REACHED");
+
       // Call ElevenLabs TTS
       const ttsResponse = await fetch(`${ELEVENLABS_BASE}/${VOICE_ID}`, {
         method: "POST",
@@ -140,6 +150,12 @@ export async function POST(
         return NextResponse.json(
           { error: "Translation not available. Call /translate first." },
           { status: 400 }
+        );
+      }
+      if (err.message === "DAILY_LIMIT_REACHED") {
+        return NextResponse.json(
+          { error: "Daily audio generation limit reached. Try again tomorrow." },
+          { status: 429 }
         );
       }
       if (err.message === "AUDIO_GENERATION_FAILED") {

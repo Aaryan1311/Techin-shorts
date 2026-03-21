@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import translate from "google-translate-api-x";
 import Groq from "groq-sdk";
 import { coalesce } from "@/lib/requestCoalescer";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { checkCostGuard } from "@/lib/costGuard";
 
 /**
  * Translate English text to natural Hinglish using Groq LLM.
@@ -69,6 +71,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limit
+  const rateLimited = await applyRateLimit(request, "translate");
+  if (rateLimited) return rateLimited;
+
   const body = await request.json();
   const { language } = body;
 
@@ -106,7 +112,10 @@ export async function POST(
         return hindiText;
       }
 
-      // HINGLISH — Groq LLM
+      // HINGLISH — Groq LLM (cost guarded)
+      const groqAllowed = await checkCostGuard("groq");
+      if (!groqAllowed) throw new Error("DAILY_LIMIT_REACHED");
+
       const hinglishText = await translateToHinglish(news.summary);
       await prisma.news.update({
         where: { id: newsId },
@@ -117,8 +126,16 @@ export async function POST(
 
     return NextResponse.json({ text });
   } catch (err) {
-    if (err instanceof Error && err.message === "NOT_FOUND") {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (err instanceof Error) {
+      if (err.message === "NOT_FOUND") {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (err.message === "DAILY_LIMIT_REACHED") {
+        return NextResponse.json(
+          { error: "Daily translation limit reached. Try again tomorrow." },
+          { status: 429 }
+        );
+      }
     }
     console.error("Translation error:", err);
     return NextResponse.json(

@@ -2,14 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { cached } from "@/lib/redis";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { sanitizeWithLimit } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // Rate limit
+  const rateLimited = await applyRateLimit(request, "search");
+  if (rateLimited) return rateLimited;
+
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get("q")?.trim();
+  const rawQuery = searchParams.get("q")?.trim();
   const sort = searchParams.get("sort") || "relevant";
 
+  if (!rawQuery) {
+    return NextResponse.json([]);
+  }
+
+  // Sanitize search input
+  const query = sanitizeWithLimit(rawQuery, 200);
   if (!query) {
     return NextResponse.json([]);
   }
@@ -32,76 +45,81 @@ export async function GET(request: NextRequest) {
   }));
 
   try {
-    // Determine ordering
-    let orderBy: Record<string, string>[];
-    switch (sort) {
-      case "recent":
-        orderBy = [{ createdAt: "desc" }];
-        break;
-      case "trending":
-        orderBy = [{ trendingScore: "desc" }, { createdAt: "desc" }];
-        break;
-      default: // "relevant"
-        // Order by viewCount as a proxy for relevance, then recency
-        orderBy = [{ viewCount: "desc" }, { createdAt: "desc" }];
-        break;
-    }
+    const cacheKey = `search:${query}:${sort}`;
 
-    const results = await prisma.news.findMany({
-      where: {
-        isActive: true,
-        AND: whereConditions,
-      },
-      orderBy,
-      take: 20,
-      include: {
-        tags: { include: { tag: true } },
-      },
+    const { data: formatted, hit } = await cached(cacheKey, 60, async () => {
+      // Determine ordering
+      let orderBy: Record<string, string>[];
+      switch (sort) {
+        case "recent":
+          orderBy = [{ createdAt: "desc" }];
+          break;
+        case "trending":
+          orderBy = [{ trendingScore: "desc" }, { createdAt: "desc" }];
+          break;
+        default: // "relevant"
+          orderBy = [{ viewCount: "desc" }, { createdAt: "desc" }];
+          break;
+      }
+
+      const results = await prisma.news.findMany({
+        where: {
+          isActive: true,
+          AND: whereConditions,
+        },
+        orderBy,
+        take: 20,
+        include: {
+          tags: { include: { tag: true } },
+        },
+      });
+
+      // Get user interactions if logged in
+      let userInteractions: Record<string, string> = {};
+      if (userId && results.length > 0) {
+        const interactions = await prisma.userNewsInteraction.findMany({
+          where: {
+            userId,
+            newsId: { in: results.map((r) => r.id) },
+          },
+          select: { newsId: true, type: true },
+        });
+        userInteractions = Object.fromEntries(
+          interactions.map((i) => [i.newsId, i.type])
+        );
+      }
+
+      return results.map((item) => ({
+        id: item.id,
+        title: item.title,
+        summary: item.summary,
+        sourceUrl: item.sourceUrl,
+        source: item.source || null,
+        imageUrl: item.imageUrl,
+        likeCount: item.likeCount,
+        dislikeCount: item.dislikeCount,
+        viewCount: item.viewCount,
+        publishedAt: item.publishedAt,
+        createdAt: item.createdAt,
+        userInteraction: userInteractions[item.id] || null,
+        isTrending: (item.trendingScore || 0) >= 8,
+        tags: item.tags.map((nt) => ({
+          id: nt.tag.id,
+          name: nt.tag.name,
+          slug: nt.tag.slug,
+          color: nt.tag.color,
+        })),
+        summaryHi: item.summaryHi || null,
+        summaryHinglish: item.summaryHinglish || null,
+        audioUrlEn: item.audioUrlEn || null,
+        audioUrlHi: item.audioUrlHi || null,
+        audioUrlHinglish: item.audioUrlHinglish || null,
+      }));
     });
 
-    // Get user interactions if logged in
-    let userInteractions: Record<string, string> = {};
-    if (userId && results.length > 0) {
-      const interactions = await prisma.userNewsInteraction.findMany({
-        where: {
-          userId,
-          newsId: { in: results.map((r) => r.id) },
-        },
-        select: { newsId: true, type: true },
-      });
-      userInteractions = Object.fromEntries(
-        interactions.map((i) => [i.newsId, i.type])
-      );
-    }
-
-    const formatted = results.map((item) => ({
-      id: item.id,
-      title: item.title,
-      summary: item.summary,
-      sourceUrl: item.sourceUrl,
-      source: item.source || null,
-      imageUrl: item.imageUrl,
-      likeCount: item.likeCount,
-      dislikeCount: item.dislikeCount,
-      viewCount: item.viewCount,
-      publishedAt: item.publishedAt,
-      createdAt: item.createdAt,
-      userInteraction: userInteractions[item.id] || null,
-      isTrending: (item.trendingScore || 0) >= 8,
-      tags: item.tags.map((nt) => ({
-        id: nt.tag.id,
-        name: nt.tag.name,
-        slug: nt.tag.slug,
-        color: nt.tag.color,
-      })),
-      summaryHi: item.summaryHi || null,
-      summaryHinglish: item.summaryHinglish || null,
-      audioUrlEn: item.audioUrlEn || null,
-      audioUrlHi: item.audioUrlHi || null,
-      audioUrlHinglish: item.audioUrlHinglish || null,
-    }));
-
-    return NextResponse.json(formatted);
+    const response = NextResponse.json(formatted);
+    response.headers.set("X-Cache", hit ? "HIT" : "MISS");
+    return response;
   } catch (err) {
     console.error("Search failed:", err);
     return NextResponse.json(

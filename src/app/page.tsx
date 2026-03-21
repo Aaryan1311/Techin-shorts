@@ -1,5 +1,10 @@
 import NewsFeed from "@/components/NewsFeed";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function Home() {
-  return <NewsFeed />;
+  return (
+    <ErrorBoundary>
+      <NewsFeed />
+    </ErrorBoundary>
+  );
 }

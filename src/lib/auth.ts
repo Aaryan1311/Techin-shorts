@@ -10,15 +10,42 @@ export const authOptions: AuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        loginToken: { label: "Login Token", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
 
-        if (!user || !user.password) return null;
+        if (!user) return null;
+
+        // Login via one-time token (after OTP verification)
+        if (credentials.loginToken) {
+          if (
+            user.resetToken === credentials.loginToken &&
+            user.resetTokenExpiry &&
+            user.resetTokenExpiry > new Date()
+          ) {
+            // Clear the token after use
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { resetToken: null, resetTokenExpiry: null },
+            });
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              onboarded: user.onboarded,
+              isAdmin: user.isAdmin,
+            };
+          }
+          return null;
+        }
+
+        // Normal password login
+        if (!credentials.password || !user.password) return null;
 
         const valid = await bcrypt.compare(credentials.password, user.password);
         if (!valid) return null;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { applyRateLimit } from "@/lib/rateLimit";
 import { sanitize } from "@/lib/sanitize";
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Generate one-time login token for seamless auto-login
+  const loginToken = crypto.randomBytes(32).toString("hex");
+
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -38,8 +42,10 @@ export async function POST(request: NextRequest) {
       otp: null,
       otpExpiry: null,
       otpPurpose: null,
+      resetToken: loginToken,
+      resetTokenExpiry: new Date(Date.now() + 60 * 1000), // 60 seconds
     },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, loginToken, email });
 }

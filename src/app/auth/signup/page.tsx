@@ -32,13 +32,6 @@ export default function SignUpPage() {
         return;
       }
 
-      // Store password temporarily for auto-login after verification
-      try {
-        sessionStorage.setItem("_ts_pwd", password);
-      } catch {
-        // ignore
-      }
-
       // Redirect to verify page
       router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
     } catch {

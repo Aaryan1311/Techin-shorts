@@ -41,22 +41,22 @@ function VerifyContent() {
         return;
       }
 
-      // Auto-login after verification
-      const result = await signIn("credentials", {
-        email,
-        password: sessionStorage.getItem("_ts_pwd") || "",
-        redirect: false,
-      });
+      // Auto-login using one-time login token from verify-otp response
+      if (data.success && data.loginToken) {
+        const signInRes = await signIn("credentials", {
+          email: data.email,
+          loginToken: data.loginToken,
+          redirect: false,
+        });
 
-      sessionStorage.removeItem("_ts_pwd");
-
-      if (result?.error) {
-        // Verification succeeded but auto-login failed — redirect to login
-        window.location.href = "/auth/login";
-        return;
+        if (signInRes?.ok) {
+          window.location.href = "/onboarding";
+          return;
+        }
       }
 
-      window.location.href = "/onboarding";
+      // Fallback: redirect to login if token-based login failed
+      window.location.href = "/auth/login";
     } catch {
       setError("Network error. Please try again.");
       setOtpError(true);

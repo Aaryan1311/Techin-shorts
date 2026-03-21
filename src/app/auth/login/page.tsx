@@ -35,12 +35,6 @@ export default function LoginPage() {
         } catch {
           // silent
         }
-        // Store password for auto-login after verification
-        try {
-          sessionStorage.setItem("_ts_pwd", password);
-        } catch {
-          // ignore
-        }
         router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
         return;
       }

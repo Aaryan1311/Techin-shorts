@@ -3,17 +3,21 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import useSWR from "swr";
 import NewsCard from "./NewsCard";
 import type { NewsItem } from "./NewsCard";
 import CardSkeleton from "./CardSkeleton";
-import { fetchNews, fetchAdminNewsSingle } from "@/lib/api";
+import { fetchAdminNewsSingle } from "@/lib/api";
+import { fetcher } from "@/lib/fetcher";
 
 type SearchSort = "relevant" | "recent" | "trending";
 
 export default function NewsFeed() {
   const { data: session, status } = useSession();
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: news = [] as NewsItem[], isLoading: loading, mutate } = useSWR<NewsItem[]>("/api/news", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -74,8 +78,8 @@ export default function NewsFeed() {
       }
 
       if (totalAdded > 0) {
-        // Refresh the feed
-        fetchNews({}).then(setNews);
+        // Refresh the feed via SWR
+        mutate();
       }
     } catch {
       setFetchMsg("Network error");
@@ -86,14 +90,10 @@ export default function NewsFeed() {
     }
   };
 
+  // Reset index when data changes
   useEffect(() => {
-    setLoading(true);
     setCurrentIndex(0);
-    fetchNews({}).then((data) => {
-      setNews(data);
-      setLoading(false);
-    });
-  }, []);
+  }, [news.length]);
 
   // Track current card via scroll position + header hide/show
   const handleScroll = useCallback(() => {

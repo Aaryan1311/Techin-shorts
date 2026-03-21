@@ -7,6 +7,7 @@ import SharePopup from "./SharePopup";
 import SourceBadge from "./SourceBadge";
 import { interactWithNews, translateNews, saveLanguagePreference } from "@/lib/api";
 import { trackEvent } from "@/lib/tracker";
+import { getFallbackImage } from "@/lib/fallbackImages";
 
 interface Tag {
   id: string;
@@ -217,35 +218,25 @@ export default function NewsCard({ news }: NewsCardProps) {
     lang === "EN" ? news.summary : translatedText || news.summary;
 
   const timeAgo = getTimeAgo(news.publishedAt || news.createdAt);
-  const hasImage = !!news.imageUrl && !imgFailed;
-  const primaryTag = news.tags[0];
+  const tagSlugs = news.tags.map((t) => t.slug);
+  const imageUrl = (!imgFailed && news.imageUrl) || getFallbackImage(tagSlugs, news.title);
 
   return (
     <>
       <div ref={cardRef} className="flex h-full w-full items-center justify-center px-4 py-4">
         <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
 
-          {/* Image at top of card (35-40%) or colored accent bar */}
-          {hasImage ? (
-            <div className="relative w-full shrink-0" style={{ height: "38%" }}>
-              <img
-                src={news.imageUrl!}
-                alt=""
-                className="h-full w-full object-cover"
-                onError={() => setImgFailed(true)}
-              />
-              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-900 to-transparent" />
-            </div>
-          ) : (
-            <div
-              className="h-1 w-full shrink-0"
-              style={{
-                background: primaryTag
-                  ? `linear-gradient(90deg, ${primaryTag.color}, ${primaryTag.color}80, transparent)`
-                  : "linear-gradient(90deg, #6366f1, #a855f7, #ec4899)",
-              }}
+          {/* Image at top of card (35-40%) */}
+          <div className="relative w-full shrink-0" style={{ height: "38%" }}>
+            <img
+              src={imageUrl}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover"
+              onError={() => setImgFailed(true)}
             />
-          )}
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-900 to-transparent" />
+          </div>
 
           {/* Content area */}
           <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 pb-3">

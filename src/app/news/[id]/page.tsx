@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import useSWR from "swr";
 import ReactMarkdown from "react-markdown";
 import { trackEvent } from "@/lib/tracker";
+import { fetcher } from "@/lib/fetcher";
 
 interface Tag {
   id: string;
@@ -26,19 +28,13 @@ interface NewsDetail {
 export default function ReadDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [news, setNews] = useState<NewsDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: news, isLoading: loading } = useSWR<NewsDetail>(
+    params.id ? `/api/news/${params.id}` : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
 
   const enteredAt = useRef(Date.now());
-
-  useEffect(() => {
-    fetch(`/api/news/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setNews(data);
-        setLoading(false);
-      });
-  }, [params.id]);
 
   // Track READ_DETAIL duration on unmount
   useEffect(() => {
@@ -69,7 +65,7 @@ export default function ReadDetailPage() {
 
   const content =
     news.detailContent ||
-    `${news.summary}\n\nDetailed content has not been generated yet. Check back soon for an in-depth breakdown of this story.`;
+    "Detailed article coming soon. Check back shortly for an in-depth breakdown of this story.";
 
   return (
     <div className="min-h-screen bg-gray-950 px-4 py-8">

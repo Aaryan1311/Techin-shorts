@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import useSWR from "swr";
 import ReactMarkdown from "react-markdown";
 import { trackEvent } from "@/lib/tracker";
+import { fetcher } from "@/lib/fetcher";
 
 interface NewsDetail {
   id: string;
   title: string;
   summary: string;
   buildOnThis: string | null;
+  futureImpact: string | null;
   imageUrl: string | null;
   tags: { id: string; name: string; slug: string; color: string }[];
   publishedAt: string;
@@ -21,40 +24,49 @@ interface ProjectIdea {
   description: string;
 }
 
+/** Clean markdown artifacts like stray ** or [  */
+function cleanText(s: string): string {
+  return s.replace(/\*\*/g, "").replace(/\*\[/g, "[").replace(/\]\*/g, "]").trim();
+}
+
+const DIFFICULTY_ORDER: Record<string, number> = { easy: 0, medium: 1, hard: 2 };
+
 function parseBuildIdeas(raw: string): ProjectIdea[] {
-  // 1. Try JSON parse first (new pipeline format)
+  // 1. Try JSON parse first
   const trimmed = raw.trim();
   if (trimmed.startsWith("[")) {
     try {
       const arr = JSON.parse(trimmed);
       if (Array.isArray(arr)) {
-        return arr.map((item: { name?: string; difficulty?: string; description?: string }) => ({
-          name: item.name || "Project",
-          difficulty: item.difficulty || "Medium",
-          description: item.description || "",
-        }));
+        return arr
+          .map((item: { name?: string; difficulty?: string; description?: string }) => ({
+            name: cleanText(item.name || "Project"),
+            difficulty: item.difficulty || "Medium",
+            description: cleanText(item.description || ""),
+          }))
+          .sort((a, b) => (DIFFICULTY_ORDER[a.difficulty.toLowerCase()] ?? 1) - (DIFFICULTY_ORDER[b.difficulty.toLowerCase()] ?? 1));
       }
     } catch {
       // Fall through to string parsing
     }
   }
 
-  // 2. Parse numbered markdown items: 1. **Name** [Difficulty] - Description
+  // 2. Parse numbered markdown items
   const ideas: ProjectIdea[] = [];
   const lines = raw.split("\n").filter((l) => l.trim());
 
   for (const line of lines) {
     const cleaned = line.replace(/^\d+[\.\)]\s*/, "").trim();
 
-    // Match: **Name** [Difficulty] — Description  OR  **Name** [Difficulty] - Description
+    // Match: **Name** [Difficulty] — Description
     const match = cleaned.match(
       /\*{0,2}([^*[\]]+?)\*{0,2}\s*\[(\w+)\]\s*[—\-–]\s*(.+)/
     );
     if (match) {
       ideas.push({
-        name: match[1].trim(),
+        name: cleanText(match[1]),
         difficulty: match[2].trim(),
-        description: match[3].trim(),
+        description: cleanText(match[3]),
       });
       continue;
     }
@@ -65,24 +77,26 @@ function parseBuildIdeas(raw: string): ProjectIdea[] {
     );
     if (fallback) {
       ideas.push({
-        name: fallback[1].trim(),
+        name: cleanText(fallback[1]),
         difficulty: "Medium",
-        description: fallback[2].trim(),
+        description: cleanText(fallback[2]),
       });
       continue;
     }
 
-    // Last resort: just use the line as description
+    // Last resort: use the line as description
     if (cleaned.length > 10) {
       ideas.push({
         name: `Project ${ideas.length + 1}`,
         difficulty: "Medium",
-        description: cleaned.replace(/\*\*/g, ""),
+        description: cleanText(cleaned),
       });
     }
   }
 
-  return ideas;
+  return ideas.sort(
+    (a, b) => (DIFFICULTY_ORDER[a.difficulty.toLowerCase()] ?? 1) - (DIFFICULTY_ORDER[b.difficulty.toLowerCase()] ?? 1)
+  );
 }
 
 function DifficultyBadge({ level }: { level: string }) {
@@ -106,19 +120,13 @@ function DifficultyBadge({ level }: { level: string }) {
 export default function BuildOnThisPage() {
   const params = useParams();
   const router = useRouter();
-  const [news, setNews] = useState<NewsDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: news, isLoading: loading } = useSWR<NewsDetail>(
+    params.id ? `/api/news/${params.id}` : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
 
   const enteredAt = useRef(Date.now());
-
-  useEffect(() => {
-    fetch(`/api/news/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setNews(data);
-        setLoading(false);
-      });
-  }, [params.id]);
 
   useEffect(() => {
     enteredAt.current = Date.now();
@@ -146,18 +154,8 @@ export default function BuildOnThisPage() {
     );
   }
 
-  const defaultIdeas: ProjectIdea[] = [
-    { name: "CLI Automation Tool", difficulty: "Easy", description: "Build a CLI tool that leverages this technology to automate developer workflows and repetitive tasks." },
-    { name: "Real-time Dashboard", difficulty: "Medium", description: "Create a web dashboard that visualizes the key metrics and data from this update with live charts." },
-    { name: "Browser Extension", difficulty: "Medium", description: "Develop a browser extension that integrates this feature into your daily browsing experience." },
-    { name: "Open Source Library", difficulty: "Hard", description: "Write an open-source library that wraps this functionality for easier adoption across different frameworks." },
-  ];
-
-  const ideas = news.buildOnThis
-    ? parseBuildIdeas(news.buildOnThis)
-    : [];
-  const displayIdeas = ideas.length > 0 ? ideas : defaultIdeas;
-  const hasContent = ideas.length > 0;
+  const ideas = news.buildOnThis ? parseBuildIdeas(news.buildOnThis) : [];
+  const hasBuildIdeas = ideas.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-950 px-4 py-8">
@@ -221,6 +219,7 @@ export default function BuildOnThisPage() {
             <img
               src={news.imageUrl}
               alt={news.title}
+              loading="lazy"
               className="w-full object-cover"
               style={{ maxHeight: "320px" }}
               onError={(e) => {
@@ -233,56 +232,67 @@ export default function BuildOnThisPage() {
         {/* Emerald accent bar */}
         <div className="mb-8 h-1 w-16 rounded-full bg-emerald-500" />
 
-        {/* Inspiring header */}
-        <p className="mb-6 text-base text-gray-400">
-          Inspired by this news? Here are project ideas you can start building today.
-        </p>
+        {hasBuildIdeas ? (
+          <>
+            <p className="mb-6 text-base text-gray-400">
+              Inspired by this news? Here are project ideas you can start building today.
+            </p>
 
-        {/* Project ideas as styled cards */}
-        <div className="mb-10 space-y-4">
-          {displayIdeas.map((idea, i) => (
-            <div
-              key={i}
-              className="group rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent p-5 transition-all hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
-            >
-              <div className="mb-3 flex items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-sm font-bold text-emerald-400">
-                  {i + 1}
-                </span>
-                <h3 className="flex-1 text-base font-bold text-white">
-                  {idea.name}
-                </h3>
-                <DifficultyBadge level={idea.difficulty} />
-              </div>
-              <p className="pl-11 text-sm leading-relaxed text-gray-300">
-                <ReactMarkdown
-                  components={{
-                    p: ({ children }) => <>{children}</>,
-                    strong: ({ children }) => (
-                      <strong className="font-semibold text-white">{children}</strong>
-                    ),
-                  }}
+            <div className="mb-10 space-y-4">
+              {ideas.map((idea, i) => (
+                <div
+                  key={i}
+                  className="group rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent p-5 transition-all hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
                 >
-                  {idea.description}
-                </ReactMarkdown>
-              </p>
-              <div className="mt-3 pl-11">
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 opacity-0 transition-opacity group-hover:opacity-100">
-                  Start Building
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </span>
-              </div>
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-sm font-bold text-emerald-400">
+                      {i + 1}
+                    </span>
+                    <h3 className="flex-1 text-base font-bold text-white">
+                      {idea.name}
+                    </h3>
+                    <DifficultyBadge level={idea.difficulty} />
+                  </div>
+                  <p className="pl-11 text-sm leading-relaxed text-gray-300">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <>{children}</>,
+                        strong: ({ children }) => (
+                          <strong className="font-semibold text-white">{children}</strong>
+                        ),
+                      }}
+                    >
+                      {idea.description}
+                    </ReactMarkdown>
+                  </p>
+                  <div className="mt-3 pl-11">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 opacity-0 transition-opacity group-hover:opacity-100">
+                      Start Building
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <p className="mb-6 text-base text-gray-400">
+              This article doesn&apos;t have specific build ideas, but here&apos;s what it means for you:
+            </p>
 
-        {!hasContent && (
-          <p className="mb-10 text-sm italic text-gray-500">
-            Custom build ideas for this article haven&apos;t been generated yet.
-            These are starter prompts to get you building.
-          </p>
+            {news.futureImpact ? (
+              <article className="prose prose-invert mb-10 max-w-none text-base leading-relaxed text-gray-300 prose-headings:text-white prose-strong:text-white prose-a:text-emerald-400 prose-a:no-underline hover:prose-a:underline">
+                <ReactMarkdown>{news.futureImpact}</ReactMarkdown>
+              </article>
+            ) : (
+              <p className="mb-10 text-sm italic text-gray-500">
+                Build ideas and impact analysis for this article are coming soon.
+              </p>
+            )}
+          </>
         )}
 
         {/* Navigation to other pages */}

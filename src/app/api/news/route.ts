@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const feed = await getPersonalizedFeed(userId, tagSlug);
-    return NextResponse.json(feed);
+    const response = NextResponse.json(feed);
+    response.headers.set("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
+    return response;
   } catch (err) {
     console.error("Failed to fetch personalized feed:", err);
     return NextResponse.json(

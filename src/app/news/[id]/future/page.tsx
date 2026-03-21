@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import useSWR from "swr";
 import ReactMarkdown from "react-markdown";
 import { trackEvent } from "@/lib/tracker";
+import { fetcher } from "@/lib/fetcher";
 
 interface NewsDetail {
   id: string;
@@ -18,19 +20,13 @@ interface NewsDetail {
 export default function FutureImpactPage() {
   const params = useParams();
   const router = useRouter();
-  const [news, setNews] = useState<NewsDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: news, isLoading: loading } = useSWR<NewsDetail>(
+    params.id ? `/api/news/${params.id}` : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
 
   const enteredAt = useRef(Date.now());
-
-  useEffect(() => {
-    fetch(`/api/news/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setNews(data);
-        setLoading(false);
-      });
-  }, [params.id]);
 
   useEffect(() => {
     enteredAt.current = Date.now();
@@ -60,7 +56,7 @@ export default function FutureImpactPage() {
 
   const content =
     news.futureImpact ||
-    `This technology has the potential to reshape how developers work and build software.\n\nA detailed future impact analysis hasn't been generated yet. Check back soon for insights on how this update will influence the tech landscape, job market, and developer workflows.`;
+    "Impact analysis coming soon. Check back shortly for insights on how this update will influence the tech landscape and developer workflows.";
 
   return (
     <div className="min-h-screen bg-gray-950 px-4 py-8">

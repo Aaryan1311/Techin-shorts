@@ -14,6 +14,8 @@ const ENV_VARS: EnvVar[] = [
   { name: "ELEVENLABS_API_KEY", required: false, description: "ElevenLabs API key for TTS" },
   { name: "UPSTASH_REDIS_REST_URL", required: false, description: "Upstash Redis REST URL" },
   { name: "UPSTASH_REDIS_REST_TOKEN", required: false, description: "Upstash Redis REST token" },
+  { name: "GMAIL_USER", required: false, description: "Gmail address for sending OTP emails" },
+  { name: "GMAIL_APP_PASSWORD", required: false, description: "Gmail App Password for SMTP" },
   { name: "CRON_SECRET", required: false, description: "Secret for cron job authentication" },
 ];
 

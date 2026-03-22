@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const verified = searchParams.get("verified") === "true";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +26,21 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
+      if (result.error === "EMAIL_NOT_VERIFIED") {
+        // Send a new OTP and redirect to verify page
+        try {
+          await fetch("/api/auth/resend-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, purpose: "verify" }),
+          });
+        } catch {
+          // silent
+        }
+        router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
       setError("Invalid email or password");
       setLoading(false);
       return;
@@ -49,6 +68,12 @@ export default function LoginPage() {
             Log in to your personalized dev feed
           </p>
 
+          {verified && (
+            <div className="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+              Email verified! Please log in to continue.
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
               {error}
@@ -71,9 +96,17 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-300">
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-300">
+                  Password
+                </label>
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-xs text-gray-500 transition-colors hover:text-indigo-400 hover:underline"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}
@@ -102,5 +135,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-950">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

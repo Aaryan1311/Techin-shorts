@@ -19,6 +19,10 @@ const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
   smashingmagazine: { label: "Smashing Magazine", color: "#e53e3e" },
   "css-tricks": { label: "CSS-Tricks", color: "#f5a623" },
   androidauthority: { label: "Android Authority", color: "#3ddc84" },
+  moneycontrol: { label: "MoneyControl", color: "#5b2c8e" },
+  "et-tech": { label: "ET Tech", color: "#1a237e" },
+  "livemint-tech": { label: "LiveMint", color: "#e65100" },
+  "mint-startups": { label: "LiveMint Startups", color: "#ef6c00" },
 };
 
 interface SourceBadgeProps {

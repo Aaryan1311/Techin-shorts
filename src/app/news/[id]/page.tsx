@@ -150,19 +150,16 @@ export default function ReadDetailPage() {
           </a>
         )}
 
-        {/* Navigation to other pages */}
-        <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/10 pt-8">
+        {/* Navigation to What's Next */}
+        <div className="mt-8 border-t border-white/10 pt-8">
           <button
-            onClick={() => router.push(`/news/${news.id}/future`)}
-            className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-purple-400 transition-all hover:bg-purple-500/20"
+            onClick={() => { trackEvent(news.id, "CLICK_FUTURE"); router.push(`/news/${news.id}/whats-next`); }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-purple-400 transition-all hover:bg-purple-500/20"
           >
-            Future Impact →
-          </button>
-          <button
-            onClick={() => router.push(`/news/${news.id}/build`)}
-            className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20"
-          >
-            Build on This →
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.58-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+            </svg>
+            What&apos;s Next →
           </button>
         </div>
       </div>

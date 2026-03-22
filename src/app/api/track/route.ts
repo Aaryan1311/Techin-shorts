@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { BehaviorType } from "@prisma/client";
 import { updateTopicScores } from "@/lib/recommendation";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { sanitize } from "@/lib/sanitize";
 
 const VALID_BEHAVIORS: Set<string> = new Set([
   "VIEW",
@@ -16,6 +18,9 @@ const VALID_BEHAVIORS: Set<string> = new Set([
 ]);
 
 export async function POST(request: NextRequest) {
+  // Rate limit
+  const rateLimited = await applyRateLimit(request, "track");
+  if (rateLimited) return rateLimited;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string })?.id;
 
@@ -30,7 +35,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { newsId, type, durationSeconds } = body;
+  const newsId = typeof body.newsId === "string" ? sanitize(body.newsId) : undefined;
+  const type = typeof body.type === "string" ? sanitize(body.type) : undefined;
+  const durationSeconds = body.durationSeconds;
 
   if (!newsId || !type || !VALID_BEHAVIORS.has(type)) {
     return NextResponse.json(

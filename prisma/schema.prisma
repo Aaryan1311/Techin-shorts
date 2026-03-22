@@ -20,6 +20,13 @@ model User {
   role              UserRole?
   quizCompletedAt   DateTime?
 
+  emailVerified    Boolean   @default(false)
+  otp              String?
+  otpExpiry        DateTime?
+  otpPurpose       String?   // "verify" or "reset"
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
   tagFollows        UserTagFollow[]
   newsInteractions  UserNewsInteraction[]
   behaviors         UserBehavior[]
@@ -91,6 +98,10 @@ model News {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([isActive, createdAt])
+  @@index([isActive, trendingScore])
+  @@index([isActive, viewCount])
+  @@index([publishedAt])
   @@map("news")
 }
 
@@ -103,6 +114,7 @@ model NewsTag {
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([newsId, tagId])
+  @@index([tagId])
   @@map("news_tags")
 }
 
@@ -168,6 +180,7 @@ model UserTopicScore {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, tagSlug])
+  @@index([userId])
   @@map("user_topic_scores")
 }
 

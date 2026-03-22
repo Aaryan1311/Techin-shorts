@@ -12,15 +12,23 @@ import { fetcher } from "@/lib/fetcher";
 
 type SearchSort = "relevant" | "recent" | "trending";
 
+interface FeedResponse {
+  articles: NewsItem[];
+  allSeen: boolean;
+}
+
 export default function NewsFeed() {
   const { data: session, status } = useSession();
-  const { data: news = [] as NewsItem[], isLoading: loading, mutate } = useSWR<NewsItem[]>("/api/news", fetcher, {
+  const { data: feedData, isLoading: loading, mutate } = useSWR<FeedResponse>("/api/news", fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   });
+  const news = feedData?.articles ?? [];
+  const allSeen = feedData?.allSeen ?? false;
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Header hide/show state
   const [headerVisible, setHeaderVisible] = useState(true);
@@ -215,6 +223,14 @@ export default function NewsFeed() {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
   }, []);
 
+  // Pull to refresh
+  const handlePullToRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    await mutate();
+    setTimeout(() => setRefreshing(false), 800);
+  }, [refreshing, mutate]);
+
   // Touch swipe handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -228,6 +244,12 @@ export default function NewsFeed() {
       const elapsed = Date.now() - touchStartTime.current;
       touchStartY.current = null;
 
+      // Pull to refresh: swipe down at top of feed
+      if (deltaY < -80 && currentIndex === 0 && feedRef.current && feedRef.current.scrollTop === 0) {
+        handlePullToRefresh();
+        return;
+      }
+
       if (Math.abs(deltaY) > 50 && elapsed < 300) {
         if (deltaY > 0) {
           scrollToIndex(currentIndex + 1);
@@ -236,7 +258,7 @@ export default function NewsFeed() {
         }
       }
     },
-    [currentIndex, scrollToIndex]
+    [currentIndex, scrollToIndex, handlePullToRefresh]
   );
 
   const isSearchMode = searchOpen && searchResults !== null;
@@ -245,8 +267,8 @@ export default function NewsFeed() {
     <div className="flex h-dvh flex-col bg-gray-950">
       {/* Header */}
       <header
-        className={`sticky top-0 z-20 border-b bg-gray-950/80 backdrop-blur-xl transition-transform duration-300 ease-in-out ${
-          headerVisible ? "translate-y-0" : "-translate-y-full"
+        className={`fixed inset-x-0 top-0 z-20 border-b bg-gray-950/80 backdrop-blur-xl transition-all duration-300 ease-in-out ${
+          headerVisible ? "translate-y-0 opacity-100" : "-translate-y-full pointer-events-none opacity-0"
         } ${currentIndex > 0 && headerVisible ? "border-white/10 shadow-lg shadow-black/20" : "border-white/5"}`}
       >
         <div className="flex items-center justify-between px-4 py-3">
@@ -364,6 +386,9 @@ export default function NewsFeed() {
         </div>
       </header>
 
+      {/* Header spacer */}
+      <div className="shrink-0" style={{ height: "60px" }} />
+
       {/* Fetch toast */}
       {fetchMsg && (
         <div className="mx-4 mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-400">
@@ -442,6 +467,26 @@ export default function NewsFeed() {
               onTouchEnd={handleTouchEnd}
               className="flex-1 snap-y snap-mandatory overflow-y-auto scrollbar-hide"
             >
+              {/* Refreshing indicator */}
+              {refreshing && (
+                <div className="flex items-center justify-center py-3">
+                  <div className="flex items-center gap-2 rounded-full bg-indigo-500/10 px-4 py-2 text-xs text-indigo-400">
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                    Refreshing...
+                  </div>
+                </div>
+              )}
+              {/* All caught up banner */}
+              {allSeen && (
+                <div className="flex items-center justify-center px-4 py-3">
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-400">
+                    <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    You&apos;re all caught up! Check back later for new updates.
+                  </div>
+                </div>
+              )}
               {news.map((item, i) => (
                 <div
                   key={item.id}

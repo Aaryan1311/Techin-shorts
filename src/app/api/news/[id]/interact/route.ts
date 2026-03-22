@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { applyRateLimit } from "@/lib/rateLimit";
+import { invalidateCachePrefix } from "@/lib/redis";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // Rate limit
+  const rateLimited = await applyRateLimit(request, "feed");
+  if (rateLimited) return rateLimited;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string })?.id;
 
@@ -135,6 +140,9 @@ export async function POST(
     });
     userInteraction = interaction?.type || null;
   }
+
+  // Invalidate feed caches on like/dislike
+  await invalidateCachePrefix("feed:");
 
   return NextResponse.json({
     likeCount: updated!.likeCount,

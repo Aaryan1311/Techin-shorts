@@ -21,6 +21,17 @@
   }
 }
 
+/* Card image responsive height */
+.card-image {
+  flex: 0 0 35%;
+}
+
+@media (max-height: 700px) {
+  .card-image {
+    flex: 0 0 28%;
+  }
+}
+
 /* Card slide-in animation */
 @keyframes card-in {
   from {

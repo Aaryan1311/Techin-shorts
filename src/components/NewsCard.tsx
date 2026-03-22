@@ -36,6 +36,7 @@ export interface NewsItem {
   audioUrlHi?: string | null;
   audioUrlHinglish?: string | null;
   isTrending?: boolean;
+  futureImpact?: string | null;
 }
 
 interface NewsCardProps {
@@ -221,13 +222,17 @@ export default function NewsCard({ news }: NewsCardProps) {
   const tagSlugs = news.tags.map((t) => t.slug);
   const imageUrl = (!imgFailed && news.imageUrl) || getFallbackImage(tagSlugs, news.title);
 
+  // Check if futureImpact has good content for "Must Read" badge
+  const fi = news.futureImpact;
+  const hasMustRead = !!(fi && fi !== "null" && fi !== "undefined" && fi.trim().length >= 50);
+
   return (
     <>
-      <div ref={cardRef} className="flex h-full w-full items-center justify-center px-4 py-4">
+      <div ref={cardRef} className="flex h-full w-full items-center justify-center px-4 py-2">
         <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
 
-          {/* Image at top of card — fixed 160px */}
-          <div className="relative w-full shrink-0 overflow-hidden" style={{ height: "160px" }}>
+          {/* Image — 35% on desktop, 28% on short screens */}
+          <div className="card-image relative w-full shrink-0 overflow-hidden">
             <img
               src={imageUrl}
               alt=""
@@ -235,14 +240,13 @@ export default function NewsCard({ news }: NewsCardProps) {
               className="h-full w-full object-cover"
               onError={() => setImgFailed(true)}
             />
-            {/* Smooth gradient fade from image to card background */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[60px]" style={{ background: "linear-gradient(to bottom, transparent, rgb(17 24 39))" }} />
           </div>
 
-          {/* Content area */}
-          <div className="flex min-h-0 flex-1 flex-col px-4 pt-3 pb-3">
+          {/* Scrollable content area */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-2 pb-1">
             {/* Source + time + share row */}
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-1.5 flex items-center gap-2">
               <SourceBadge source={news.source} />
               {news.isTrending && (
                 <span className="flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">
@@ -263,14 +267,14 @@ export default function NewsCard({ news }: NewsCardProps) {
             </div>
 
             {/* Title */}
-            <h2 className="mb-3 line-clamp-3 text-lg font-bold leading-snug text-white sm:text-xl">
+            <h2 className="mb-2 line-clamp-3 text-base font-bold leading-snug text-white sm:text-lg">
               {news.title}
             </h2>
 
-            {/* Summary — full text, no truncation */}
-            <div className="relative min-h-0 flex-1">
+            {/* Summary — scrolls if needed */}
+            <div className="relative flex-1">
               <p
-                className={`text-sm leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base sm:leading-7 ${
+                className={`text-sm leading-relaxed text-gray-300 transition-opacity duration-200 ${
                   translating ? "opacity-50" : "opacity-100"
                 }`}
               >
@@ -282,9 +286,12 @@ export default function NewsCard({ news }: NewsCardProps) {
                 </div>
               )}
             </div>
+          </div>
 
+          {/* Bottom bar — always pinned at bottom, never scrolled away */}
+          <div className="shrink-0 border-t border-white/5 px-4 pt-2 pb-3">
             {/* Audio + Like/Dislike row */}
-            <div className="mb-3 flex items-center gap-3">
+            <div className="mb-2 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <AudioPlayer
                   newsId={news.id}
@@ -343,7 +350,7 @@ export default function NewsCard({ news }: NewsCardProps) {
               </div>
             </div>
 
-            {/* Action buttons — pinned at bottom */}
+            {/* Action buttons */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => { trackEvent(news.id, "CLICK_DETAIL"); router.push(`/news/${news.id}`); }}
@@ -356,12 +363,15 @@ export default function NewsCard({ news }: NewsCardProps) {
               </button>
               <button
                 onClick={() => { trackEvent(news.id, "CLICK_FUTURE"); router.push(`/news/${news.id}/whats-next`); }}
-                className="flex items-center justify-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
+                className="relative flex items-center justify-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.58-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
                 </svg>
                 What&apos;s Next
+                {hasMustRead && (
+                  <span className="ml-1 inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                )}
               </button>
             </div>
           </div>

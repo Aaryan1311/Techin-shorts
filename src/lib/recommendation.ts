@@ -196,10 +196,15 @@ export interface ScoredNewsItem {
   audioUrlHinglish: string | null;
 }
 
+export interface FeedResponse {
+  articles: ScoredNewsItem[];
+  allSeen: boolean;
+}
+
 export async function getPersonalizedFeed(
   userId: string | null,
   tagSlug?: string | null
-): Promise<ScoredNewsItem[]> {
+): Promise<FeedResponse> {
   const where: Record<string, unknown> = { isActive: true };
 
   if (tagSlug) {
@@ -219,9 +224,10 @@ export async function getPersonalizedFeed(
   let userTopicScores: Record<string, number> = {};
   let userRole: UserRole | null = null;
   let dislikedTagSlugs = new Set<string>();
+  let viewedNewsIds = new Set<string>();
 
   if (userId) {
-    const [interactions, topicScoreRows, user, dislikedInteractions] =
+    const [interactions, topicScoreRows, user, dislikedInteractions, viewBehaviors] =
       await Promise.all([
         prisma.userNewsInteraction.findMany({
           where: { userId, newsId: { in: news.map((n) => n.id) } },
@@ -241,6 +247,12 @@ export async function getPersonalizedFeed(
             news: { select: { tags: { select: { tag: { select: { slug: true } } } } } },
           },
         }),
+        // Fetch VIEW behaviors to determine seen articles
+        prisma.userBehavior.findMany({
+          where: { userId, type: "VIEW", newsId: { in: news.map((n) => n.id) } },
+          select: { newsId: true },
+          distinct: ["newsId"],
+        }),
       ]);
 
     userInteractions = Object.fromEntries(
@@ -255,12 +267,14 @@ export async function getPersonalizedFeed(
         i.news.tags.map((t) => t.tag.slug)
       )
     );
+    viewedNewsIds = new Set(viewBehaviors.map((v) => v.newsId));
   }
 
   // Score and sort
   const scored = news.map((item) => {
     const tagSlugs = item.tags.map((t) => t.tag.slug);
     const isDisliked = userInteractions[item.id] === "DISLIKE";
+    const isSeen = viewedNewsIds.has(item.id);
 
     let personalScore: number;
 
@@ -290,12 +304,24 @@ export async function getPersonalizedFeed(
     return {
       ...item,
       personalScore,
+      isSeen,
     };
   });
 
-  scored.sort((a, b) => b.personalScore - a.personalScore);
+  // Sort: unseen first (by personalScore), then seen (by recency)
+  if (userId) {
+    scored.sort((a, b) => {
+      if (a.isSeen !== b.isSeen) return a.isSeen ? 1 : -1; // unseen first
+      if (!a.isSeen) return b.personalScore - a.personalScore; // unseen: by score
+      return b.createdAt.getTime() - a.createdAt.getTime(); // seen: by recency
+    });
+  } else {
+    scored.sort((a, b) => b.personalScore - a.personalScore);
+  }
 
-  return scored.map((item) => ({
+  const allSeen = userId ? scored.length > 0 && scored.every((s) => s.isSeen) : false;
+
+  const articles = scored.map((item) => ({
     id: item.id,
     title: item.title,
     summary: item.summary,
@@ -322,4 +348,6 @@ export async function getPersonalizedFeed(
     audioUrlHi: item.audioUrlHi || null,
     audioUrlHinglish: item.audioUrlHinglish || null,
   }));
+
+  return { articles, allSeen };
 }

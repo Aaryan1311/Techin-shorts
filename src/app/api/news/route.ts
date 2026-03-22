@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const cacheKey = `feed:${userId || "anon"}:${tagSlug || "all"}`;
-    const { data: feed, hit } = await cached(cacheKey, 30, () =>
+    const { data: feedResult, hit } = await cached(cacheKey, 30, () =>
       getPersonalizedFeed(userId, tagSlug)
     );
 
-    const response = NextResponse.json(feed);
+    const response = NextResponse.json(feedResult);
     response.headers.set("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
     response.headers.set("X-Cache", hit ? "HIT" : "MISS");
     return response;

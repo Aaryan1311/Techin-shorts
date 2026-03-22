@@ -226,8 +226,8 @@ export default function NewsCard({ news }: NewsCardProps) {
       <div ref={cardRef} className="flex h-full w-full items-center justify-center px-4 py-4">
         <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
 
-          {/* Image at top of card (35-40%) */}
-          <div className="relative w-full shrink-0" style={{ height: "38%" }}>
+          {/* Image at top of card — fixed 160px */}
+          <div className="relative w-full shrink-0 overflow-hidden" style={{ height: "160px" }}>
             <img
               src={imageUrl}
               alt=""
@@ -235,7 +235,8 @@ export default function NewsCard({ news }: NewsCardProps) {
               className="h-full w-full object-cover"
               onError={() => setImgFailed(true)}
             />
-            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gray-900 to-transparent" />
+            {/* Smooth gradient fade from image to card background */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[60px]" style={{ background: "linear-gradient(to bottom, transparent, rgb(17 24 39))" }} />
           </div>
 
           {/* Content area */}
@@ -266,10 +267,10 @@ export default function NewsCard({ news }: NewsCardProps) {
               {news.title}
             </h2>
 
-            {/* Summary — vertically centered in remaining space */}
-            <div className="relative flex min-h-0 flex-1 items-center">
+            {/* Summary — full text, no truncation */}
+            <div className="relative min-h-0 flex-1">
               <p
-                className={`line-clamp-6 text-sm leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base sm:leading-7 ${
+                className={`text-sm leading-relaxed text-gray-300 transition-opacity duration-200 sm:text-base sm:leading-7 ${
                   translating ? "opacity-50" : "opacity-100"
                 }`}
               >

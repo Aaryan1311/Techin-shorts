@@ -23,12 +23,12 @@
 
 /* Card image responsive height */
 .card-image {
-  flex: 0 0 35%;
+  flex: 0 0 30%;
 }
 
 @media (max-height: 700px) {
   .card-image {
-    flex: 0 0 28%;
+    flex: 0 0 25%;
   }
 }
 

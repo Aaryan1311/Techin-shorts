@@ -145,7 +145,7 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
 
   return (
     <div ref={containerRef}>
-      <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 backdrop-blur-sm">
+      <div className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1 backdrop-blur-sm">
         {/* Speaker icon */}
         <svg
           className={`h-4 w-4 shrink-0 transition-colors ${playing ? "text-indigo-400" : "text-gray-500"}`}
@@ -167,7 +167,7 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
             <button
               key={key}
               onClick={() => handleLangSwitch(key)}
-              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
+              className={`rounded px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide transition-all ${
                 lang === key
                   ? "bg-indigo-500/20 text-indigo-400"
                   : "text-gray-500 hover:text-gray-300"
@@ -185,7 +185,7 @@ export default function AudioPlayer({ newsId, lang, onLangChange, cachedAudioUrl
         <button
           onClick={togglePlay}
           disabled={isLoading}
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-all ${
             isLoading
               ? "bg-white/5 text-gray-500"
               : playing

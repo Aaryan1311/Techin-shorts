@@ -228,10 +228,10 @@ export default function NewsCard({ news }: NewsCardProps) {
 
   return (
     <>
-      <div ref={cardRef} className="flex h-full w-full items-center justify-center px-4 py-2">
+      <div ref={cardRef} className="flex h-full w-full items-center justify-center px-3 py-1">
         <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 shadow-2xl">
 
-          {/* Image — 35% on desktop, 28% on short screens */}
+          {/* Image — 30% desktop, 25% mobile */}
           <div className="card-image relative w-full shrink-0 overflow-hidden">
             <img
               src={imageUrl}
@@ -244,37 +244,37 @@ export default function NewsCard({ news }: NewsCardProps) {
           </div>
 
           {/* Scrollable content area */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-2 pb-1">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-1.5 pb-1 scrollbar-hide">
             {/* Source + time + share row */}
-            <div className="mb-1.5 flex items-center gap-2">
+            <div className="mb-1 flex items-center gap-1.5">
               <SourceBadge source={news.source} />
               {news.isTrending && (
-                <span className="flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-400">
-                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23a7.5 7.5 0 01-5.138-12.963C8.204 8.774 11.5 6.5 11 1.5c6 4 9 8 3 14 1 0 2.5 0 5-2.47.27.773.5 1.604.5 2.47A7.5 7.5 0 0112 23z"/></svg>
+                <span className="flex items-center gap-0.5 rounded-full bg-orange-500/15 px-1.5 py-px text-[9px] font-semibold text-orange-400">
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23a7.5 7.5 0 01-5.138-12.963C8.204 8.774 11.5 6.5 11 1.5c6 4 9 8 3 14 1 0 2.5 0 5-2.47.27.773.5 1.604.5 2.47A7.5 7.5 0 0112 23z"/></svg>
                   Trending
                 </span>
               )}
-              <span className="text-[10px] text-gray-600">{timeAgo}</span>
+              <span className="text-[11px] text-gray-600">{timeAgo}</span>
               <button
                 onClick={handleShare}
-                className="ml-auto rounded-lg p-1.5 text-gray-500 transition-all hover:bg-white/10 hover:text-white"
+                className="ml-auto rounded-md p-1 text-gray-500 transition-all hover:bg-white/10 hover:text-white"
                 aria-label="Share"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                 </svg>
               </button>
             </div>
 
             {/* Title */}
-            <h2 className="mb-2 line-clamp-3 text-base font-bold leading-snug text-white sm:text-lg">
+            <h2 className="mb-1 line-clamp-2 text-[15px] font-bold leading-tight text-white sm:text-base">
               {news.title}
             </h2>
 
-            {/* Summary — scrolls if needed */}
+            {/* Summary */}
             <div className="relative flex-1">
               <p
-                className={`text-sm leading-relaxed text-gray-300 transition-opacity duration-200 ${
+                className={`text-[13px] leading-snug text-gray-300 transition-opacity duration-200 ${
                   translating ? "opacity-50" : "opacity-100"
                 }`}
               >
@@ -282,16 +282,16 @@ export default function NewsCard({ news }: NewsCardProps) {
               </p>
               {translating && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Bottom bar — always pinned at bottom, never scrolled away */}
-          <div className="shrink-0 border-t border-white/5 px-4 pt-2 pb-3">
+          {/* Bottom bar — always pinned, never pushed off screen */}
+          <div className="shrink-0 border-t border-white/5 px-3 pt-1.5 pb-2">
             {/* Audio + Like/Dislike row */}
-            <div className="mb-2 flex items-center gap-3">
+            <div className="mb-1.5 flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <AudioPlayer
                   newsId={news.id}
@@ -304,10 +304,10 @@ export default function NewsCard({ news }: NewsCardProps) {
                   }}
                 />
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-0.5">
                 <button
                   onClick={() => handleInteract("LIKE")}
-                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
+                  className={`flex items-center gap-0.5 rounded-md px-2 py-1 text-[11px] transition-all ${
                     likeAnim ? "animate-vote-pop" : ""
                   } ${
                     voted === "like"
@@ -316,7 +316,7 @@ export default function NewsCard({ news }: NewsCardProps) {
                   }`}
                 >
                   <svg
-                    className="h-4 w-4"
+                    className="h-3.5 w-3.5"
                     fill={voted === "like" ? "currentColor" : "none"}
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -328,7 +328,7 @@ export default function NewsCard({ news }: NewsCardProps) {
                 </button>
                 <button
                   onClick={() => handleInteract("DISLIKE")}
-                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-all ${
+                  className={`flex items-center gap-0.5 rounded-md px-2 py-1 text-[11px] transition-all ${
                     dislikeAnim ? "animate-vote-pop" : ""
                   } ${
                     voted === "dislike"
@@ -337,7 +337,7 @@ export default function NewsCard({ news }: NewsCardProps) {
                   }`}
                 >
                   <svg
-                    className="h-4 w-4"
+                    className="h-3.5 w-3.5"
                     fill={voted === "dislike" ? "currentColor" : "none"}
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -350,11 +350,11 @@ export default function NewsCard({ news }: NewsCardProps) {
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Action buttons — compact 36px height */}
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 onClick={() => { trackEvent(news.id, "CLICK_DETAIL"); router.push(`/news/${news.id}`); }}
-                className="flex items-center justify-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
+                className="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 text-[13px] font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97]"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -363,14 +363,14 @@ export default function NewsCard({ news }: NewsCardProps) {
               </button>
               <button
                 onClick={() => { trackEvent(news.id, "CLICK_FUTURE"); router.push(`/news/${news.id}/whats-next`); }}
-                className="relative flex items-center justify-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2.5 text-xs font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97] sm:text-sm"
+                className="relative flex h-9 items-center justify-center gap-1.5 rounded-xl bg-white/[0.05] px-3 text-[13px] font-medium text-gray-300 backdrop-blur-sm transition-all hover:bg-white/[0.09] hover:text-white active:scale-[0.97]"
               >
                 <svg className="h-3.5 w-3.5 shrink-0 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.58-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
                 </svg>
                 What&apos;s Next
                 {hasMustRead && (
-                  <span className="ml-1 inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className="ml-0.5 inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 )}
               </button>
             </div>

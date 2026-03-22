@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import ReactMarkdown from "react-markdown";
@@ -101,9 +101,17 @@ function getTimeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Check if a field has real content (not null, "null", "undefined", empty, etc.) */
+function hasValidContent(value: string | null | undefined, minLength = 10): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (trimmed === "null" || trimmed === "undefined" || trimmed.length < minLength) return false;
+  return true;
+}
+
 function extractActionableNote(futureImpact: string | null): string {
-  if (!futureImpact) return "Stay informed about developments like this to stay ahead in your career.";
-  const paragraphs = futureImpact.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+  if (!hasValidContent(futureImpact, 10)) return "Stay informed about developments like this to stay ahead in your career.";
+  const paragraphs = futureImpact!.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
   const actionKeywords = /you should|developers need|consider|prepare for|start|learn|adopt|migrate|upgrade|switch|keep an eye|watch for|pay attention/i;
   for (let i = paragraphs.length - 1; i >= 0; i--) {
     if (actionKeywords.test(paragraphs[i])) return paragraphs[i];
@@ -121,6 +129,9 @@ export default function WhatsNextPage() {
   );
 
   const enteredAt = useRef(Date.now());
+  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateFailed, setGenerateFailed] = useState(false);
 
   useEffect(() => {
     enteredAt.current = Date.now();
@@ -131,6 +142,33 @@ export default function WhatsNextPage() {
       }
     };
   }, [params.id]);
+
+  // Auto-generate advice if futureImpact is missing
+  const generateAdvice = useCallback(async (newsId: string) => {
+    setGenerating(true);
+    setGenerateFailed(false);
+    try {
+      const res = await fetch(`/api/news/${newsId}/generate-advice`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.content) {
+          setGeneratedContent(data.content);
+          return;
+        }
+      }
+      setGenerateFailed(true);
+    } catch {
+      setGenerateFailed(true);
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (news && !hasValidContent(news.futureImpact, 50) && !generatedContent && !generating && !generateFailed) {
+      generateAdvice(news.id);
+    }
+  }, [news, generatedContent, generating, generateFailed, generateAdvice]);
 
   if (loading) {
     return (
@@ -157,10 +195,14 @@ export default function WhatsNextPage() {
     );
   }
 
-  const hasBuildContent = news.buildOnThis && news.buildOnThis.trim().length > 0;
+  const hasFutureImpact = hasValidContent(news.futureImpact, 50);
+  const hasBuildContent = hasValidContent(news.buildOnThis, 10);
   const ideas = hasBuildContent ? parseBuildIdeas(news.buildOnThis!) : [];
   const showBuildSection = ideas.length > 0;
-  const actionableNote = extractActionableNote(news.futureImpact);
+
+  // Use existing futureImpact, or generated content, or null
+  const displayImpact = hasFutureImpact ? news.futureImpact! : generatedContent;
+  const actionableNote = extractActionableNote(displayImpact);
 
   return (
     <div className="min-h-screen bg-gray-950 px-4 py-8">
@@ -187,15 +229,40 @@ export default function WhatsNextPage() {
           <span className="text-xs text-gray-500">{getTimeAgo(news.publishedAt)}</span>
         </div>
 
-        {/* Section 1 — Industry Impact (always shown) */}
+        {/* Section 1 — Industry Impact */}
         <section className="mb-6">
           <div className="border-l-2 border-blue-500 pl-4">
             <h2 className="mb-4 text-lg font-bold text-white">How This Changes the Industry</h2>
           </div>
-          {news.futureImpact ? (
+          {displayImpact ? (
             <article className="prose prose-invert max-w-none text-sm leading-relaxed text-gray-300 prose-headings:text-white prose-strong:text-white prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline">
-              <ReactMarkdown>{news.futureImpact}</ReactMarkdown>
+              <ReactMarkdown>{displayImpact}</ReactMarkdown>
             </article>
+          ) : generating ? (
+            <div className="space-y-3 rounded-xl border border-white/10 bg-gray-900/50 p-5">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                Generating analysis...
+              </div>
+              <div className="h-3 w-full animate-pulse rounded bg-gray-800" />
+              <div className="h-3 w-5/6 animate-pulse rounded bg-gray-800" />
+              <div className="h-3 w-4/6 animate-pulse rounded bg-gray-800" />
+            </div>
+          ) : generateFailed ? (
+            <div className="rounded-xl border border-white/10 bg-gray-900/50 p-5">
+              <p className="mb-3 text-sm text-gray-400">
+                Analysis will be available shortly. Meanwhile, read the full article for more context.
+              </p>
+              <button
+                onClick={() => router.push(`/news/${news.id}`)}
+                className="inline-flex items-center gap-2 text-sm font-medium text-indigo-400 hover:text-indigo-300"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                Read Full Article
+              </button>
+            </div>
           ) : (
             <p className="text-sm italic text-gray-500">
               Industry impact analysis coming soon.
@@ -203,7 +270,7 @@ export default function WhatsNextPage() {
           )}
         </section>
 
-        {/* Section 2 — What This Means for You (always shown) */}
+        {/* Section 2 — What This Means for You */}
         <section className="mb-6">
           <div className="border-l-2 border-emerald-500 pl-4">
             <h2 className="mb-4 text-lg font-bold text-white">What This Means for You</h2>
@@ -215,7 +282,7 @@ export default function WhatsNextPage() {
           </div>
         </section>
 
-        {/* Section 3 — Build With This (only if content exists) */}
+        {/* Section 3 — Build With This (only if valid content exists) */}
         {showBuildSection && (
           <section className="mb-6">
             <div className="border-l-2 border-purple-500 pl-4">

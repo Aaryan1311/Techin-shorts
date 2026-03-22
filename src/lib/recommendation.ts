@@ -194,6 +194,7 @@ export interface ScoredNewsItem {
   audioUrlEn: string | null;
   audioUrlHi: string | null;
   audioUrlHinglish: string | null;
+  futureImpact: string | null;
 }
 
 export interface FeedResponse {
@@ -347,6 +348,7 @@ export async function getPersonalizedFeed(
     audioUrlEn: item.audioUrlEn || null,
     audioUrlHi: item.audioUrlHi || null,
     audioUrlHinglish: item.audioUrlHinglish || null,
+    futureImpact: item.futureImpact || null,
   }));
 
   return { articles, allSeen };
